@@ -5,6 +5,9 @@ module.exports = {
       'version': 'detect'
     },
   },
+  'globals': {
+    'NodeJS': true,
+  },
   'root': true,
   'env': {
     'browser': true,
@@ -13,8 +16,6 @@ module.exports = {
   },
   'extends': [
     'eslint:recommended',
-    'plugin:react/recommended',
-    'plugin:@typescript-eslint/recommended'
   ],
   'overrides': [
   ],
