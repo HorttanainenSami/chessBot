@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Chessboard as Cb } from 'react-chessboard';
 import { Chess } from 'chess.js';
 import { makeMove } from '../bot/moves';
+import useChess from '../GameLogic/useChess';
 
 const buttonStyle = {
   cursor: 'pointer',
@@ -20,6 +21,7 @@ const boardWrapper = {
 };
 
 const Chessboard = () => {
+  const { loadFEN, clearBoard, gameState, getFEN } = useChess();
   const [game, setGame] = useState(new Chess());
   const [currentTimeout, setCurrentTimeout] = useState<NodeJS.Timeout|undefined>();
   //@ts-ignore: next-line
@@ -65,26 +67,38 @@ const Chessboard = () => {
 
   return (
     <div style={boardWrapper}>
+      <div>
+        {getFEN()}
+      </div>
+      <div>
+        {game.fen()}
+      </div>
       <Cb
         id="PlayVsRandom"
-        position={game.fen()}
+        position={getFEN()}
         onPieceDrop={onDrop}
         customBoardStyle={{
           borderRadius: '4px',
           boxShadow: '0 2px 10px rgba(0, 0, 0, 0.5)',
         }}
       />
+      
       <button
         style={buttonStyle}
         onClick={() => {
           //@ts-ignore: next-line
-          safeGameMutate((game) => {
-            game.reset();
-          });
-          clearTimeout(currentTimeout);
+          clearBoard();
         }}
       >
-        reset
+        clear
+      </button>
+      <button
+        style={buttonStyle}
+        onClick={() => {
+          loadFEN('8/3RQ3/p1NP3P/b1PP3k/1r5N/2P2P2/7K/3B4 w - - 0 1');
+        }}
+      >
+        loadFen
       </button>
       <button
         style={buttonStyle}
