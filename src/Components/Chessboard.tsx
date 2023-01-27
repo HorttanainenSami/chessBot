@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { Chessboard as Cb } from 'react-chessboard';
 import { Chess } from 'chess.js';
 import { makeMove } from '../bot/moves';
-import useChess from '../GameLogic/useChess';
+import useChess, { PieceSymbol } from '../GameLogic/useChess';
+import { Square, Piece } from '../Types';
 
 const buttonStyle = {
   cursor: 'pointer',
@@ -21,7 +22,7 @@ const boardWrapper = {
 };
 
 const Chessboard = () => {
-  const { loadFEN, clearBoard, gameState, getFEN } = useChess();
+  const { makeMove: chessMove, loadFEN, clearBoard, gameState, getFEN } = useChess();
   const [game, setGame] = useState(new Chess());
   const [currentTimeout, setCurrentTimeout] = useState<NodeJS.Timeout|undefined>();
   //@ts-ignore: next-line
@@ -47,7 +48,14 @@ const Chessboard = () => {
     });
   }
   //@ts-ignore: next-line
-  function onDrop(sourceSquare, targetSquare) : boolean {
+  function onDrop(sourceSquare: Square, targetSquare: Square, piece: Piece) : boolean {
+    const move1 = chessMove({
+      from: sourceSquare,
+      to: targetSquare,
+      piece: piece.charAt(1).toLowerCase() as PieceSymbol,
+      promotion:'q',
+      color: piece.charAt(0) === 'b'? 'black': 'white',
+    });
     const gameCopy = { ...game };
     const move = gameCopy.move({
       from: sourceSquare,

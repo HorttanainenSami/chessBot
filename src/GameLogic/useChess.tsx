@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import Long from 'long';
 
-type Color = 'black'|'white';
+export type Color = 'black' | 'white';
 export type PieceSymbol = 'p' | 'n' | 'b' | 'r' | 'q' | 'k';
 export type Square =
     'a8' | 'b8' | 'c8' | 'd8' | 'e8' | 'f8' | 'g8' | 'h8' |
@@ -56,6 +56,7 @@ interface Move {
   promotion: PieceSymbol,
   captured?: PieceSymbol,
   color: Color,
+  piece: PieceSymbol
 }
 const useChess = () => {
   // save gamestate as bitboard
@@ -75,8 +76,13 @@ const useChess = () => {
   // Move object or Algerbaic notation ie. Ng3 means knigth moves for g3 coortidane
   const makeMove = (move: Move|string) => {
     console.log(move); 
-    validateMove();
+    //returns true if legal false if illegal 
+    validateMove(move);
 
+    return {};
+  };
+  const validateMove = (move: Move|string) => {
+     
     return {};
   };
   const loadFEN = (Fen: string) => {
@@ -240,10 +246,6 @@ const useChess = () => {
     return Fen.concat(` ${turn} ${castling} ${elPassant} ${halfMove} ${fullMove}`);
   };
 
-  const validateMove = () => {
-
-    return {};
-  };
   return { loadFEN, clearBoard, getFEN, moves, gameState, makeMove};
 };
 function isNumeric(expectedValue:string) {
