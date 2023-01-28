@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Chessboard as Cb } from 'react-chessboard';
 import { Chess } from 'chess.js';
 import { makeMove } from '../bot/moves';
-import useChess, { PieceSymbol } from '../GameLogic/useChess';
+import useChess, { bitPieces } from '../GameLogic/useChess';
 import { Square, Piece } from '../Types';
 
 const buttonStyle = {
@@ -49,10 +49,12 @@ const Chessboard = () => {
   }
   //@ts-ignore: next-line
   function onDrop(sourceSquare: Square, targetSquare: Square, piece: Piece) : boolean {
+    //convert piece to enum that reprecents pieces
+    const bitPiece = bitPieces[(piece.charAt(0)==='b'?piece.charAt(1).toLowerCase():piece.charAt(1).toLocaleUpperCase())as keyof typeof bitPieces];
     const move1 = chessMove({
       from: sourceSquare,
       to: targetSquare,
-      piece: piece.charAt(1).toLowerCase() as PieceSymbol,
+      piece: bitPiece,
       promotion:'q',
       color: piece.charAt(0) === 'b'? 'black': 'white',
     });
@@ -103,7 +105,7 @@ const Chessboard = () => {
       <button
         style={buttonStyle}
         onClick={() => {
-          loadFEN('8/3RQ3/p1NP3P/b1PP3k/1r5N/2P2P2/7K/3B4 w - - 0 1');
+          loadFEN('rnbqkbnr/p3pppp/4p3/8/2p3Rp/8/PPPPPPPR/RNBQKBN1 w - - 0 1');
         }}
       >
         loadFen
