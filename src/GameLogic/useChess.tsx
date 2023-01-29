@@ -1,43 +1,12 @@
 import { useState } from 'react';
 import Long from 'long';
+import { bitPieces, SquareBit, logger, isNumeric, checkBitAt, blockingPiece } from './helpers';
+import { Move } from '../Types';
 
-export type Color = 'black' | 'white';
-export type PieceSymbol = 'p' | 'n' | 'b' | 'r' | 'q' | 'k';
-export type Square =
-    'a8' | 'b8' | 'c8' | 'd8' | 'e8' | 'f8' | 'g8' | 'h8' |
-    'a7' | 'b7' | 'c7' | 'd7' | 'e7' | 'f7' | 'g7' | 'h7' |
-    'a6' | 'b6' | 'c6' | 'd6' | 'e6' | 'f6' | 'g6' | 'h6' |
-    'a5' | 'b5' | 'c5' | 'd5' | 'e5' | 'f5' | 'g5' | 'h5' |
-    'a4' | 'b4' | 'c4' | 'd4' | 'e4' | 'f4' | 'g4' | 'h4' |
-    'a3' | 'b3' | 'c3' | 'd3' | 'e3' | 'f3' | 'g3' | 'h3' |
-    'a2' | 'b2' | 'c2' | 'd2' | 'e2' | 'f2' | 'g2' | 'h2' |
-    'a1' | 'b1' | 'c1' | 'd1' | 'e1' | 'f1' | 'g1' | 'h1';
-// convert square to its pointing bitindex
-export enum SquareBit {
-  'h1', 'g1', 'f1', 'e1', 'd1', 'c1', 'b1', 'a1',
-  'h2', 'g2', 'f2', 'e2', 'd2', 'c2', 'b2', 'a2',
-  'h3', 'g3', 'f3', 'e3', 'd3', 'c3', 'b3', 'a3',
-  'h4', 'g4', 'f4', 'e4', 'd4', 'c4', 'b4', 'a4',
-  'h5', 'g5', 'f5', 'e5', 'd5', 'c5', 'b5', 'a5',
-  'h6', 'g6', 'f6', 'e6', 'd6', 'c6', 'b6', 'a6',
-  'h7', 'g7', 'f7', 'e7', 'd7', 'c7', 'b7', 'a7',
-  'h8', 'g8', 'f8', 'e8', 'd8', 'c8', 'b8', 'a8',
-}
+const HFileSet = new Long(0x1010101, 0x1010101, true);
+const Rank1Set = new Long(0xFF,0, true);
+const Rank8Set = new Long(0, 0xFF000000, true);
 export const allBitsSet = new Long(0xFFFFFFFF, 0xFFFFFFFF, true);
-export enum bitPieces {
-  'P',
-  'p',
-  'R',
-  'r',
-  'B',
-  'b',
-  'N',
-  'n',
-  'Q',
-  'q',
-  'K',
-  'k',
-}
 /*
 pieces represented in 64 bit, 1 = piece, 0 = not piece 
 */
@@ -61,20 +30,12 @@ const startState: Long[] = [
   new Long(0x8, 0x0, true),
   new Long(0x0, 0x8000000, true),
 ];
-interface Move {
-  from: Square,
-  to: Square,
-  promotion: PieceSymbol,
-  captured?: PieceSymbol,
-  color: Color,
-  piece: bitPieces
-}
 const useChess = () => {
   // save gamestate as bitboard
   const [ gameState, setGameState ] = useState<Long[]>(startState);
   const [ turn, setTurn ] = useState<'w'|'b'>('w');
   //checks if castling is possible '' means not possible
-  const  [castling, setCastling] = useState('KQkq');
+  const [ castling, setCastling ] = useState('KQkq');
   const [ elPassant, setElPassant ] = useState<string>('-');
   const [ halfMove, setHalfMove ] = useState(0);
   const [ fullMove, setFullMove ] = useState(1);
@@ -93,6 +54,7 @@ const useChess = () => {
 
     return {};
   };
+  // returns true if move is legal to perform
   const validateMove = ({ from, to, piece, promotion, color }: Move) => {
     const frombitIndex = SquareBit[from];
     const toBitIndex = SquareBit[to];
@@ -125,36 +87,42 @@ const useChess = () => {
     //rooks
     case 2:{
       console.log('case2');
-      console.log(frombitIndex);
-      ////////////////////////////////////////////////////////////
-      //move all these masks to globals if can be used more than once
-      //////////////////////////////////////////////////////////
-      const rookPosition = oneBit.shiftLeft(frombitIndex);
       const fileNumber = frombitIndex%8;
       const rankNumber = ~~(frombitIndex/8);
-      //file
-      const northMoveMask = new Long(0x1010101, 0x1010101, true).shiftLeft(frombitIndex+8);
-      const southMoveMask = new Long(0x1010101, 0x1010101, true).shiftRightUnsigned(64-frombitIndex);
-      //rank
-      const eastMoveMask = new Long(0, 0xFF000000, true).shiftLeft(fileNumber+1).shiftRightUnsigned(8*(7-rankNumber));
-      const westMoveMask = new Long(0xFF,0, true).shiftRightUnsigned(8-fileNumber).shiftLeft(rankNumber*8);
-      const fileMask = new Long(0x1010101, 0x1010101, true).shiftLeft(fileNumber);
-      const rankMask = new Long(0xFF, 0, true).shiftLeft(rankNumber*8);
+      const northMoveMask = HFileSet.shiftLeft(frombitIndex+8);
+      const southMoveMask = HFileSet.shiftRightUnsigned(64-frombitIndex);
+      const eastMoveMask = Rank8Set.shiftLeft(fileNumber+1).shiftRightUnsigned(8*(7-rankNumber));
+      const westMoveMask = Rank1Set.shiftRightUnsigned(8-fileNumber).shiftLeft(rankNumber*8);
+      const fileMask = HFileSet.shiftLeft(fileNumber);
+      const rankMask = Rank1Set.shiftLeft(rankNumber*8);
       const rookMoveMask = fileMask.or(rankMask);
 
-      //include only blocking pieces
-      const attacks = rookMoveMask.and(blackOccupiedBits);
-      logger(attacks);
-
+      const pseudoAttacks = rookMoveMask.and(blackOccupiedBits);
+      const pseudoMoves = blockingPiece(pseudoAttacks, northMoveMask).or(blockingPiece(pseudoAttacks,westMoveMask)).or(blockingPiece(pseudoAttacks,southMoveMask,true)).or(blockingPiece(pseudoAttacks,eastMoveMask));
+      const legalMoves = pseudoMoves.and(allBitsSet.xor(whiteOccupiedBits));
+      //remove white pieces
 
       return false;
     }
     case 3:{
       console.log('case3');
-      console.log(frombitIndex);
-      const northMoveMask = new Long(1, 0, true).shiftLeft(frombitIndex+8);
-      const northBitCount = ((frombitIndex)/8);
-      console.log(logger(northMoveMask), northBitCount, ~~northBitCount);
+      ////////////////////////////////////////////////////////////
+      //move all these masks to globals if can be used more than once
+      //////////////////////////////////////////////////////////
+      const fileNumber = frombitIndex%8;
+      const rankNumber = ~~(frombitIndex/8);
+      const northMoveMask = HFileSet.shiftLeft(frombitIndex+8);
+      const southMoveMask = HFileSet.shiftRightUnsigned(64-frombitIndex);
+      const eastMoveMask = Rank8Set.shiftLeft(fileNumber+1).shiftRightUnsigned(8*(7-rankNumber));
+      const westMoveMask = Rank1Set.shiftRightUnsigned(8-fileNumber).shiftLeft(rankNumber*8);
+      const fileMask = HFileSet.shiftLeft(fileNumber);
+      const rankMask = Rank1Set.shiftLeft(rankNumber*8);
+      const rookMoveMask = fileMask.or(rankMask);
+
+      const pseudoAttacks = rookMoveMask.and(blackOccupiedBits);
+      const pseudoMoves = blockingPiece(pseudoAttacks, northMoveMask).or(blockingPiece(pseudoAttacks,westMoveMask)).or(blockingPiece(pseudoAttacks,southMoveMask,true)).or(blockingPiece(pseudoAttacks,eastMoveMask));
+      const legalMoves = pseudoMoves.and(allBitsSet.xor(whiteOccupiedBits));
+
       return false;
     }
     case 4:
@@ -278,18 +246,15 @@ const useChess = () => {
 
   const clearBoard = () => setGameState( new Array(12).fill(new Long(0x0,0x0, true)));
 
+  //returns FEN notation of gamestate. Useful for testing
   const getFEN = () => {
     let Fen = '';
     const pieceBitboard = gameState.reduce((acc, curr) => acc.or(curr), new Long(0x0,0x0, true)); 
 
     for(let idx = 8; idx > 0; idx--){
       let empty=0;
-      //let str = `${idx}: `;
       for(let i = 7; i >= 0; i--) {
-        //str = str.concat(' ');
         const bitIndex = idx*8-(8-i);
-        //str = str.concat(bitIndex.toString());
-        //str = str.concat(`(${idx*8-(8-i)})`);
         if(!checkBitAt(pieceBitboard, bitIndex)){
           empty++;
           continue;
@@ -298,7 +263,6 @@ const useChess = () => {
         //should check what bitboard contains 1 bit at bitIndex and add it to FEN string
         if(empty !== 0){
           Fen = Fen.concat(empty.toString());
-          //str = str.concat(empty.toString());
           empty=0;
         }
         for(let x = 0; x < gameState.length; x++){
@@ -309,37 +273,22 @@ const useChess = () => {
           const piece = bitPieces[x];
           if(!piece) throw new Error(`piece ${x} not found`);
           Fen = Fen.concat(piece);
-          //str = str.concat(piece);
           break;
         }
       }
      
       if(empty !== 0){
         Fen = Fen.concat(empty.toString());
-        //str = str.concat(empty.toString());
       }
 
       if(idx === 1 ){
-        //console.log(str);
         break; 
       }
       Fen = Fen.concat('/');
-      //console.log(str + '/');
-      
     }
     return Fen.concat(` ${turn} ${castling} ${elPassant} ${halfMove} ${fullMove}`);
   };
 
   return { loadFEN, clearBoard, getFEN, moves, gameState, makeMove};
 };
-const logger = ( l : Long) => console.log(l.toString(2).padStart(64,'0').match(/.{1,8}/g)?.join('\n'));
-function isNumeric(expectedValue:string) {
-  if (typeof expectedValue === 'string' && !Number.isNaN(Number(expectedValue))) {
-    return true;
-  }
-  return false;
-}
-function checkBitAt(long : Long, index: number){
-  return long.shiftRight(index).and(1).toInt()===1;
-}
 export default useChess;

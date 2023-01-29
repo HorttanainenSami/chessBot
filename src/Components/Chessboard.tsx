@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { Chessboard as Cb } from 'react-chessboard';
-import { Chess } from 'chess.js';
 import { makeMove } from '../bot/moves';
-import useChess, { bitPieces } from '../GameLogic/useChess';
+import useChess from '../GameLogic/useChess';
+import { bitPieces} from '../GameLogic/helpers';
 import { Square, Piece } from '../Types';
 
 const buttonStyle = {
@@ -23,30 +23,8 @@ const boardWrapper = {
 
 const Chessboard = () => {
   const { makeMove: chessMove, loadFEN, clearBoard, gameState, getFEN } = useChess();
-  const [game, setGame] = useState(new Chess());
-  const [currentTimeout, setCurrentTimeout] = useState<NodeJS.Timeout|undefined>();
   //@ts-ignore: next-line
-  function safeGameMutate(modify) {
-    setGame((g) => {
-      const update = { ...g };
-      modify(update);
-      return update;
-    });
-  }
 
-  function makeRandomMove() {
-    const possibleMoves = game.moves();
-    const positionsInFen = game.fen();
-
-    // exit if the game is over
-    if (game.game_over() || game.in_draw() || possibleMoves.length === 0) return;
-
-    const botNextMove = makeMove({ possibleMoves, positionsInFen });
-    //@ts-ignore: next-line
-    safeGameMutate((game) => {
-      game.move(botNextMove);
-    });
-  }
   //@ts-ignore: next-line
   function onDrop(sourceSquare: Square, targetSquare: Square, piece: Piece) : boolean {
     //convert piece to enum that reprecents pieces
@@ -58,20 +36,10 @@ const Chessboard = () => {
       promotion:'q',
       color: piece.charAt(0) === 'b'? 'black': 'white',
     });
-    const gameCopy = { ...game };
-    const move = gameCopy.move({
-      from: sourceSquare,
-      to: targetSquare,
-      promotion: 'q', // always promote to a queen for example simplicity
-    });
-    setGame(gameCopy);
 
-    // illegal move
-    if (move === null) return false;
+    // if illegal move
+    // return false
 
-    // store timeout so it can be cleared on undo/reset so computer doesn't execute move
-    const newTimeout = setTimeout(makeRandomMove, 200);
-    setCurrentTimeout(newTimeout);
     return true;
   }
 
@@ -79,9 +47,6 @@ const Chessboard = () => {
     <div style={boardWrapper}>
       <div>
         {getFEN()}
-      </div>
-      <div>
-        {game.fen()}
       </div>
       <Cb
         id="PlayVsRandom"
@@ -105,22 +70,10 @@ const Chessboard = () => {
       <button
         style={buttonStyle}
         onClick={() => {
-          loadFEN('rnbqkbnr/p3pppp/4p3/8/2p3Rp/8/PPPPPPPR/RNBQKBN1 w - - 0 1');
+          loadFEN('rnbqkbnr/p3pppp/4p3/8/2p3R1/8/PPPPPPPR/RNBQKBN1 w - - 0 1');
         }}
       >
         loadFen
-      </button>
-      <button
-        style={buttonStyle}
-        onClick={() => {
-          //@ts-ignore: next-line
-          safeGameMutate((game) => {
-            game.undo();
-          });
-          clearTimeout(currentTimeout);
-        }}
-      >
-        undo
       </button>
     </div>
   );
