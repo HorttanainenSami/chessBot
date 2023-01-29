@@ -4,7 +4,7 @@ Tässä projektissa rakennamme shakki tekoälyn. Projekti on tehty HY:n tira-lab
 # Toteutus
 ### Kielet
 
-Ohjelma toteutetaan JavaScriptillä. Pystyn myös vertaisarvioimaan Javalla kirjoitetun projektin.
+Ohjelma toteutetaan Typescriptillä. Pystyn myös vertaisarvioimaan Javalla kirjoitetun projektin.
 
 ### Algoritmit
 Projektissa rakennetaan shakki tekoäly joka toteutetaan minmax-algoritmillä jota on tehostettu alpha-beta-karsinnalla. Tietokoneen on tarkoitus pystyä pelaamaan ihmistä vastaan tuottamalla pelaajalle haastetta.
