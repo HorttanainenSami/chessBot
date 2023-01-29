@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Chessboard as Cb } from 'react-chessboard';
 import { Chess } from 'chess.js';
+import { makeMove } from '../bot/moves';
 
 const buttonStyle = {
   cursor: 'pointer',
@@ -32,14 +33,15 @@ const Chessboard = () => {
 
   function makeRandomMove() {
     const possibleMoves = game.moves();
+    const positionsInFen = game.fen();
 
     // exit if the game is over
     if (game.game_over() || game.in_draw() || possibleMoves.length === 0) return;
 
-    const randomIndex = Math.floor(Math.random() * possibleMoves.length);
+    const botNextMove = makeMove({ possibleMoves, positionsInFen });
     //@ts-ignore: next-line
     safeGameMutate((game) => {
-      game.move(possibleMoves[randomIndex]);
+      game.move(botNextMove);
     });
   }
   //@ts-ignore: next-line

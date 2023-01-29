@@ -11,6 +11,7 @@
     "@types/react": "^18.0.27",
     "@types/react-dom": "^18.0.10",
     "chess.js": "^0.13.4",
+    "chess.ts": "^0.16.2",
     "react": "^18.2.0",
     "react-chessboard": "^2.0.8",
     "react-dom": "^18.2.0",
