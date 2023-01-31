@@ -43,6 +43,10 @@ const Chessboard = () => {
     return true;
   }
 
+  const showMoves = (piece: Piece, sourceSquare: Square) => {
+    console.log(piece, sourceSquare);
+    console.log('dragged');
+  };
   return (
     <div style={boardWrapper}>
       <div>
@@ -52,6 +56,7 @@ const Chessboard = () => {
         id="PlayVsRandom"
         position={getFEN()}
         onPieceDrop={onDrop}
+        onPieceDragBegin={showMoves}
         customBoardStyle={{
           borderRadius: '4px',
           boxShadow: '0 2px 10px rgba(0, 0, 0, 0.5)',
@@ -70,7 +75,7 @@ const Chessboard = () => {
       <button
         style={buttonStyle}
         onClick={() => {
-          loadFEN('rnbqkbnr/p3pppp/4p3/8/2p3R1/8/PPPPPPPR/RNBQKBN1 w - - 0 1');
+          loadFEN('rnbqkbnr/r3pppp/3rp3/8/2p3R1/8/PPPPPPPR/RNBQKBNr w - - 0 1');
         }}
       >
         loadFen

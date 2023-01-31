@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import Long from 'long';
 import { bitPieces, SquareBit, logger, isNumeric, checkBitAt, blockingPiece } from './helpers';
-import { Move } from '../Types';
+import { Square, Piece, Move, Color } from '../Types';
 
 const HFileSet = new Long(0x1010101, 0x1010101, true);
+const AFileSet = new Long(0x80808080, 0x80808080, true);
 const Rank1Set = new Long(0xFF,0, true);
 const Rank8Set = new Long(0, 0xFF000000, true);
 export const allBitsSet = new Long(0xFFFFFFFF, 0xFFFFFFFF, true);
@@ -42,7 +43,16 @@ const useChess = () => {
 
   // returns all valid moves in Move[] 
   // optional parameter /square/: Only return moves of given piece
-  const moves = () => {
+  interface IMoves {
+    square: Square,
+    piece: Piece,
+  }
+  const moves = (p : IMoves|null) => {
+    if(p){
+      //return only one
+
+    }
+    //return all
     return {};
   };
   // Move object or Algerbaic notation ie. Ng3 means knigth moves for g3 coortidane
@@ -56,7 +66,7 @@ const useChess = () => {
   };
   // returns true if move is legal to perform
   const validateMove = ({ from, to, piece, promotion, color }: Move) => {
-    const frombitIndex = SquareBit[from];
+    const fromBitIndex = SquareBit[from];
     const toBitIndex = SquareBit[to];
     const oneBit = new Long(1,0,true);
     const occupiedBits = gameState.reduce((acc, curr) => acc.or(curr), new Long(0x0,0x0, true));
@@ -69,59 +79,25 @@ const useChess = () => {
     console.log(bitPieces[piece]);
     switch(piece){
     case 0:{
-      const moveWPawnMask = new Long(0x101, 0, true).shiftLeft(frombitIndex+8);
-      //add also attacks
-      const possibleMoves = emptySquares.and(moveWPawnMask);
-      //check if /to/ is within possibleMoves
-      const moveMask = possibleMoves.and(oneBit.shiftLeft(toBitIndex));
+      const legalMoves = pawnLegalMoves({ fromBitIndex, enemyOccupied: blackOccupiedBits, emptySquares, color: 'white', occupiedBits });
+      const moveMask = legalMoves.and(oneBit.shiftLeft(toBitIndex));
       return checkBitAt(moveMask,toBitIndex);
     }
     case 1:{
-      const moveBPawnMask = new Long(0x101, 0x0,true).shiftLeft(frombitIndex-16);
-      //add also attacks
-      const possibleMoves = emptySquares.and(moveBPawnMask);
-      //check if /to/ is within possibleMoves
-      const moveMask = possibleMoves.and(oneBit.shiftLeft(toBitIndex));
-      return checkBitAt(moveMask,toBitIndex);
+      const legalMoves = pawnLegalMoves({ fromBitIndex, enemyOccupied: whiteOccupiedBits, emptySquares, color: 'black', occupiedBits });
+      const moveMask = legalMoves.and(oneBit.shiftLeft(toBitIndex));
+      return checkBitAt(moveMask, toBitIndex);
     }
     //rooks
     case 2:{
       console.log('case2');
-      const fileNumber = frombitIndex%8;
-      const rankNumber = ~~(frombitIndex/8);
-      const northMoveMask = HFileSet.shiftLeft(frombitIndex+8);
-      const southMoveMask = HFileSet.shiftRightUnsigned(64-frombitIndex);
-      const eastMoveMask = Rank8Set.shiftLeft(fileNumber+1).shiftRightUnsigned(8*(7-rankNumber));
-      const westMoveMask = Rank1Set.shiftRightUnsigned(8-fileNumber).shiftLeft(rankNumber*8);
-      const fileMask = HFileSet.shiftLeft(fileNumber);
-      const rankMask = Rank1Set.shiftLeft(rankNumber*8);
-      const rookMoveMask = fileMask.or(rankMask);
-
-      const pseudoAttacks = rookMoveMask.and(blackOccupiedBits);
-      const pseudoMoves = blockingPiece(pseudoAttacks, northMoveMask).or(blockingPiece(pseudoAttacks,westMoveMask)).or(blockingPiece(pseudoAttacks,southMoveMask,true)).or(blockingPiece(pseudoAttacks,eastMoveMask));
-      const legalMoves = pseudoMoves.and(allBitsSet.xor(whiteOccupiedBits));
-      //remove white pieces
-
+      rookLegalMoves({ fromBitIndex, occupiedBits, teammateOccupiedBits: whiteOccupiedBits });
       return false;
     }
     case 3:{
       console.log('case3');
-      ////////////////////////////////////////////////////////////
-      //move all these masks to globals if can be used more than once
-      //////////////////////////////////////////////////////////
-      const fileNumber = frombitIndex%8;
-      const rankNumber = ~~(frombitIndex/8);
-      const northMoveMask = HFileSet.shiftLeft(frombitIndex+8);
-      const southMoveMask = HFileSet.shiftRightUnsigned(64-frombitIndex);
-      const eastMoveMask = Rank8Set.shiftLeft(fileNumber+1).shiftRightUnsigned(8*(7-rankNumber));
-      const westMoveMask = Rank1Set.shiftRightUnsigned(8-fileNumber).shiftLeft(rankNumber*8);
-      const fileMask = HFileSet.shiftLeft(fileNumber);
-      const rankMask = Rank1Set.shiftLeft(rankNumber*8);
-      const rookMoveMask = fileMask.or(rankMask);
+      rookLegalMoves({ fromBitIndex, occupiedBits, teammateOccupiedBits: blackOccupiedBits });
 
-      const pseudoAttacks = rookMoveMask.and(blackOccupiedBits);
-      const pseudoMoves = blockingPiece(pseudoAttacks, northMoveMask).or(blockingPiece(pseudoAttacks,westMoveMask)).or(blockingPiece(pseudoAttacks,southMoveMask,true)).or(blockingPiece(pseudoAttacks,eastMoveMask));
-      const legalMoves = pseudoMoves.and(allBitsSet.xor(whiteOccupiedBits));
 
       return false;
     }
@@ -290,5 +266,74 @@ const useChess = () => {
   };
 
   return { loadFEN, clearBoard, getFEN, moves, gameState, makeMove};
+};
+interface IPawnLegalMoves {
+  fromBitIndex: number,
+  emptySquares: Long,
+  enemyOccupied: Long,
+  occupiedBits: Long,
+  color: Color,
+}
+const pawnLegalMoves = ({fromBitIndex, enemyOccupied, emptySquares, color, occupiedBits}: IPawnLegalMoves) => {
+  //if white in 2 rank and black in 7 rank move 2 forward possible
+  const rankNumber = ~~(fromBitIndex/8);
+  let movePawnMask = new Long(1,0,true);
+  let possibleMoves = new Long(0,0,true);
+  let eat= new Long(1,0,true);
+  let pseudoMoves = new Long(1,0,true);
+  if(color === 'black'){
+    const blockingPiece = checkBitAt(movePawnMask.shiftLeft(fromBitIndex-8).and(occupiedBits), fromBitIndex-8);
+    movePawnMask = (rankNumber === 6 && !blockingPiece)?
+      movePawnMask.add(0x100).shiftLeft(fromBitIndex-16)
+      : movePawnMask.shiftLeft(fromBitIndex-8);
+    possibleMoves = emptySquares.and(movePawnMask);
+    //eat left
+    pseudoMoves=eat.shiftLeft(fromBitIndex-7).and(HFileSet.not());
+    //eat right
+    pseudoMoves=pseudoMoves.or(eat.shiftLeft(fromBitIndex-9).and(AFileSet.not()));
+  }else{
+    const blockingPiece = checkBitAt(movePawnMask.shiftLeft(fromBitIndex+8).and(occupiedBits),fromBitIndex+8);
+
+    movePawnMask = (rankNumber === 1 && !blockingPiece)?
+      movePawnMask.add(0x100).shiftLeft(fromBitIndex+8)
+      : movePawnMask.shiftLeft(fromBitIndex+8);
+
+    possibleMoves = emptySquares.and(movePawnMask);
+    //eat left
+    pseudoMoves=eat.shiftLeft(9+fromBitIndex).and(HFileSet.not());
+    //eat right
+    pseudoMoves=pseudoMoves.or(eat.shiftLeft(7+fromBitIndex).and(AFileSet.not()));
+  }
+  //filter if not anything to eat
+  pseudoMoves = pseudoMoves.and(enemyOccupied);
+  return possibleMoves.or(pseudoMoves);
+};
+interface IRookLegalMoves {
+  fromBitIndex: number,
+  occupiedBits: Long,
+  teammateOccupiedBits: Long
+}
+const rookLegalMoves = ({ fromBitIndex, occupiedBits, teammateOccupiedBits }: IRookLegalMoves) => {
+  const fileNumber = fromBitIndex%8;
+  const rankNumber = ~~(fromBitIndex/8);
+  const northMoveMask = HFileSet.shiftLeft(fromBitIndex).shiftLeft(8);
+  const southMoveMask = AFileSet.shiftRightUnsigned((7-fileNumber)+(7-rankNumber)*8).shiftRightUnsigned(8);
+  const westMoveMask = Rank1Set.shiftRightUnsigned(1+fileNumber).shiftLeft(rankNumber*8+fileNumber+1);
+  const eastMoveMask = Rank1Set.shiftRightUnsigned(8-fileNumber).shiftLeft(rankNumber*8);
+  const fileMask = HFileSet.shiftLeft(fileNumber);
+  const rankMask = Rank1Set.shiftLeft(rankNumber*8);
+  const rookMoveMask = fileMask.or(rankMask);
+
+  const pseudoAttacks = rookMoveMask.and(occupiedBits);
+  //positive
+  const northAttacks = blockingPiece(pseudoAttacks, northMoveMask);
+  const westAttacks = blockingPiece(pseudoAttacks, westMoveMask);
+  //negative
+  const southAttacks = blockingPiece(pseudoAttacks, southMoveMask, true);
+  const eastAttacks = blockingPiece(pseudoAttacks, eastMoveMask, true);
+  const pseudoMoves = northAttacks.or(westAttacks).or(eastAttacks).or(southAttacks);
+  const legalMoves = pseudoMoves.and(allBitsSet.xor(teammateOccupiedBits));
+  logger(legalMoves);
+  return legalMoves;
 };
 export default useChess;
