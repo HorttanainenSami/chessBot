@@ -51,7 +51,7 @@ const Chessboard = () => {
     legalMoves.map((move) => {
       //@ts-ignore: next-line
       newSquares[move] = {
-        background: 'radial-gradient(circle, rgba(0,0,0,.1) 85%, transparent 85%)',
+        background: 'radial-gradient(circle, rgba(255,0,0,0.6) 95%, transparent 5%)',
         borderRadius: '50%',
       };
       return move;
@@ -104,7 +104,7 @@ const Chessboard = () => {
       <button
         style={buttonStyle}
         onClick={() => {
-          loadFEN('BnBqkbnB/Q3pppp/3rp3/2Qq4/2Q3R1/4p3/PPPPPPPR/BNBQKBNB w - - 0 1');
+          loadFEN('knBq1bnB/Q3pppp/1rp4K/2QN4/2Q3R1/N3p2N/PPPPPPPR/BNBQ1BNB w - - 0 1');
         }}
       >
         loadFen

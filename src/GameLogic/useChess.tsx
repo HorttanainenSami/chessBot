@@ -4,7 +4,11 @@ import { bitPieces, SquareBit, logger, isNumeric, checkBitAt, blockingPiece } fr
 import { Square, Piece, Move, Color } from '../Types';
 
 const HFileSet = new Long(0x1010101, 0x1010101, true);
+const GFileSet = new Long(0x2020202, 0x2020202, true);
+const GHFileMask = HFileSet.or(GFileSet);
 const AFileSet = new Long(0x80808080, 0x80808080, true);
+const BFileSet = new Long(0x40404040, 0x40404040, true);
+const ABFileMask = AFileSet.or(BFileSet);
 const Rank1Set = new Long(0xFF,0, true);
 const Rank8Set = new Long(0, 0xFF000000, true);
 export const allBitsSet = new Long(0xFFFFFFFF, 0xFFFFFFFF, true);
@@ -64,6 +68,7 @@ const useChess = () => {
     //return only one
     const fromBitIndex = SquareBit[square];
     const oneBit = new Long(1,0,true);
+    const currentPiecePosition = oneBit.shiftLeft(fromBitIndex);
     const occupiedBits = gameState.reduce((acc, curr) => acc.or(curr), new Long(0x0,0x0, true));
     const blackOccupiedBits = gameState.reduce((acc, curr,i) => {
       if(i%2===0) return acc;
@@ -74,9 +79,11 @@ const useChess = () => {
     switch(piece){
 
     case 0:{
+      //elpassant
       return pawnLegalMoves({ fromBitIndex, enemyOccupied: blackOccupiedBits, emptySquares, color: 'w', occupiedBits });
     }
     case 1:{
+      //elpassant
       return pawnLegalMoves({ fromBitIndex, enemyOccupied: whiteOccupiedBits, emptySquares, color: 'b', occupiedBits });
     }
     case 2:{
@@ -92,10 +99,14 @@ const useChess = () => {
       return bishopLegalMoves({fromBitIndex, occupiedBits, teammateOccupiedBits: blackOccupiedBits});
     }
     case 6:{
-      return new Long(0,0,true);
+      const pseudoMoves = knightPseudoMoves({knightPosition: currentPiecePosition });
+      const legalMoves = pseudoMoves.and(whiteOccupiedBits.not());
+      return legalMoves;
     }
     case 7:{
-      return new Long(0,0,true);
+      const pseudoMoves = knightPseudoMoves({knightPosition: currentPiecePosition });
+      const legalMoves = pseudoMoves.and(blackOccupiedBits.not());
+      return legalMoves;
     }
     case 8:{
       const diagonalMoves = bishopLegalMoves({fromBitIndex, occupiedBits, teammateOccupiedBits:whiteOccupiedBits});
@@ -108,10 +119,14 @@ const useChess = () => {
       return diagonalMoves.or(fileAndRankMoves);
     }
     case 10:{
-      return new Long(0,0,true);
+      const pseudoMoves =  kingPseudoMoves({kingPosition: currentPiecePosition});
+      // add here also defended squares filter
+      return pseudoMoves.and(whiteOccupiedBits.not());
     }
     case 11:{
-      return new Long(0,0,true);
+      const pseudoMoves =  kingPseudoMoves({kingPosition: currentPiecePosition});
+      // add here also defended squares filter
+      return pseudoMoves.and(blackOccupiedBits.not());
     }
     default: return new Long(0,0,true);
     }
@@ -480,5 +495,47 @@ function checkForADiagonalBlockingPieces({ possibleMoves, occupiedSquares }: ICh
   }
   return blockedMoves;
 }
+interface IKingPseudoMoves {
+  kingPosition: Long
+}
+const kingPseudoMoves = ({kingPosition}: IKingPseudoMoves) => {
+
+  const NorthWest = kingPosition.shiftLeft(9);
+  const NorthEast = kingPosition.shiftLeft(7);
+  const North = kingPosition.shiftLeft(8);
+  const West = kingPosition.shiftLeft(1);
+  const East = kingPosition.shiftRightUnsigned(1);
+  const South = kingPosition.shiftRightUnsigned(8);
+  const SouthWest = kingPosition.shiftRightUnsigned(7);
+  const SouthEast = kingPosition.shiftRightUnsigned(9);
+
+  const moveMask = West.or(North).or(East).or(South).or(NorthEast).or(NorthWest).or(SouthEast).or(SouthWest);
+  //do masking 
+  logger(AFileSet.not());
+  logger(HFileSet.not());
+  if(kingPosition.and(AFileSet).isZero()) return moveMask.and(AFileSet.not());
+  if(kingPosition.and(HFileSet).isZero()) return moveMask.and(HFileSet.not());
+  return moveMask;
+};
+interface IknightPseudoMoves {
+  knightPosition: Long,
+}
+const knightPseudoMoves = ({knightPosition}: IknightPseudoMoves) => {
+
+  const noNorthWest = knightPosition.shiftLeft(17);
+  const noNorthEast = knightPosition.shiftLeft(15);
+  const noWestWest = knightPosition.shiftLeft(6);
+  const noEastEast = knightPosition.shiftLeft(10);
+  const soSouthWest = knightPosition.shiftRightUnsigned(17);
+  const soSouthEast = knightPosition.shiftRightUnsigned(15);
+  const soWestWest = knightPosition.shiftRightUnsigned(10);
+  const soEastEast = knightPosition.shiftRightUnsigned(6);
+  const PseudoMask = knightPosition.or(noNorthWest).or(noNorthEast).or(soSouthWest).or(soSouthEast).or(noEastEast).or(noWestWest).or(soWestWest).or(soEastEast);
+
+  //remove moves that portal to other side
+  if(!ABFileMask.and(knightPosition).isZero()) return PseudoMask.and(GHFileMask.not());  //remove GHFILE
+  if(!GHFileMask.and(knightPosition).isZero()) return PseudoMask.and(ABFileMask.not());  //remove ABFILE
+  return PseudoMask; 
+};
 export default useChess;
 
