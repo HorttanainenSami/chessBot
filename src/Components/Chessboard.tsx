@@ -104,7 +104,7 @@ const Chessboard = () => {
       <button
         style={buttonStyle}
         onClick={() => {
-          loadFEN('knBq1bnB/Q3pppp/1rp4K/2QN4/2Q3R1/N3p2N/PPPPPPPR/BNBQ1BNB w - - 0 1');
+          loadFEN('knBq1bnB/Q3pppp/1rp4K/2bN4/2B3R1/N3p2N/PPPPPPPR/BNBQ1BNB w - - 0 1');
         }}
       >
         loadFen

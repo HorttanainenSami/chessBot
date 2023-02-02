@@ -2,15 +2,11 @@ import { useState } from 'react';
 import Long from 'long';
 import { bitPieces, SquareBit, logger, isNumeric, checkBitAt, blockingPiece } from './helpers';
 import { Square, Piece, Move, Color } from '../Types';
+import { rookLegalMoves, rookPseudoMoves, bishopLegalMoves, bishopPseudoMoves, kingPseudoMoves, knightPseudoMoves } from './moveMasks';
+
 
 const HFileSet = new Long(0x1010101, 0x1010101, true);
-const GFileSet = new Long(0x2020202, 0x2020202, true);
-const GHFileMask = HFileSet.or(GFileSet);
 const AFileSet = new Long(0x80808080, 0x80808080, true);
-const BFileSet = new Long(0x40404040, 0x40404040, true);
-const ABFileMask = AFileSet.or(BFileSet);
-const Rank1Set = new Long(0xFF,0, true);
-const Rank8Set = new Long(0, 0xFF000000, true);
 export const allBitsSet = new Long(0xFFFFFFFF, 0xFFFFFFFF, true);
 /*
 pieces represented in 64 bit, 1 = piece, 0 = not piece 
@@ -87,16 +83,22 @@ const useChess = () => {
       return pawnLegalMoves({ fromBitIndex, enemyOccupied: whiteOccupiedBits, emptySquares, color: 'b', occupiedBits });
     }
     case 2:{
-      return rookLegalMoves({ fromBitIndex, occupiedBits, teammateOccupiedBits: whiteOccupiedBits });
+      const pseudoMoves = rookPseudoMoves({ fromBitIndex });
+      const legalMoves = rookLegalMoves({fromBitIndex, occupiedSquares: occupiedBits, teammateOccupiedBits: whiteOccupiedBits, rookMoveMask:pseudoMoves });
+      return legalMoves;
     }
     case 3:{
-      return rookLegalMoves({ fromBitIndex, occupiedBits, teammateOccupiedBits: blackOccupiedBits });
+      const pseudoMoves = rookPseudoMoves({ fromBitIndex });
+      const legalMoves = rookLegalMoves({fromBitIndex, occupiedSquares: occupiedBits, teammateOccupiedBits: blackOccupiedBits, rookMoveMask:pseudoMoves });
+      return legalMoves;
     }
     case 4:{
-      return bishopLegalMoves({fromBitIndex, occupiedBits, teammateOccupiedBits: whiteOccupiedBits});
+      const pseudoMoves = bishopPseudoMoves({ fromBitIndex });
+      return bishopLegalMoves({possibleMoves: pseudoMoves, bishopPosition: currentPiecePosition, occupiedBits, fromBitIndex, teammateOccupiedBits: whiteOccupiedBits });
     }
     case 5:{
-      return bishopLegalMoves({fromBitIndex, occupiedBits, teammateOccupiedBits: blackOccupiedBits});
+      const pseudoMoves = bishopPseudoMoves({ fromBitIndex });
+      return bishopLegalMoves({possibleMoves: pseudoMoves, bishopPosition: currentPiecePosition, occupiedBits, fromBitIndex, teammateOccupiedBits: blackOccupiedBits });
     }
     case 6:{
       const pseudoMoves = knightPseudoMoves({knightPosition: currentPiecePosition });
@@ -109,14 +111,20 @@ const useChess = () => {
       return legalMoves;
     }
     case 8:{
-      const diagonalMoves = bishopLegalMoves({fromBitIndex, occupiedBits, teammateOccupiedBits:whiteOccupiedBits});
-      const fileAndRankMoves = rookLegalMoves({fromBitIndex, occupiedBits, teammateOccupiedBits:whiteOccupiedBits});
-      return diagonalMoves.or(fileAndRankMoves);
+      const pseudoMoves = bishopPseudoMoves({ fromBitIndex });
+      const diagonalLegalMoves=bishopLegalMoves({possibleMoves: pseudoMoves, bishopPosition: currentPiecePosition, occupiedBits, fromBitIndex, teammateOccupiedBits: whiteOccupiedBits });
+
+      const RpseudoMoves = rookPseudoMoves({ fromBitIndex });
+      const RlegalMoves = rookLegalMoves({fromBitIndex, occupiedSquares: occupiedBits, teammateOccupiedBits: whiteOccupiedBits, rookMoveMask:RpseudoMoves });
+      return diagonalLegalMoves.or(RlegalMoves);
     }
     case 9:{
-      const diagonalMoves = bishopLegalMoves({fromBitIndex, occupiedBits, teammateOccupiedBits:blackOccupiedBits});
-      const fileAndRankMoves = rookLegalMoves({fromBitIndex, occupiedBits, teammateOccupiedBits:blackOccupiedBits});
-      return diagonalMoves.or(fileAndRankMoves);
+      const pseudoMoves = bishopPseudoMoves({ fromBitIndex });
+      const diagonalLegalMoves=bishopLegalMoves({possibleMoves: pseudoMoves, bishopPosition: currentPiecePosition, occupiedBits, fromBitIndex, teammateOccupiedBits: blackOccupiedBits });
+
+      const RpseudoMoves = rookPseudoMoves({ fromBitIndex });
+      const RlegalMoves = rookLegalMoves({fromBitIndex, occupiedSquares: occupiedBits, teammateOccupiedBits: blackOccupiedBits, rookMoveMask:RpseudoMoves });
+      return diagonalLegalMoves.or(RlegalMoves);
     }
     case 10:{
       const pseudoMoves =  kingPseudoMoves({kingPosition: currentPiecePosition});
@@ -132,6 +140,7 @@ const useChess = () => {
     }
 
   };
+
   // Move object or Algerbaic notation ie. Ng3 means knigth moves for g3 coortidane
   const makeMove = (move: Move) => {
     console.log(move); 
@@ -168,15 +177,15 @@ const useChess = () => {
     }
     //rooks
     case 2:{
-      rookLegalMoves({ fromBitIndex, occupiedBits, teammateOccupiedBits: whiteOccupiedBits });
+      //rookLegalMoves({ fromBitIndex, occupiedBits, teammateOccupiedBits: whiteOccupiedBits });
       return false;
     }
     case 3:{
-      rookLegalMoves({ fromBitIndex, occupiedBits, teammateOccupiedBits: blackOccupiedBits });
+      //rookLegalMoves({ fromBitIndex, occupiedBits, teammateOccupiedBits: blackOccupiedBits });
       return false;
     }
     case 4:{
-      rookLegalMoves({ fromBitIndex, occupiedBits, teammateOccupiedBits: whiteOccupiedBits });
+      //rookLegalMoves({ fromBitIndex, occupiedBits, teammateOccupiedBits: whiteOccupiedBits });
       return false;
     }
     case 5:
@@ -386,34 +395,6 @@ const pawnLegalMoves = ({fromBitIndex, enemyOccupied, emptySquares, color, occup
   pseudoMoves = pseudoMoves.and(enemyOccupied);
   return possibleMoves.or(pseudoMoves);
 };
-interface IRookLegalMoves {
-  fromBitIndex: number,
-  occupiedBits: Long,
-  teammateOccupiedBits: Long
-}
-const rookLegalMoves = ({ fromBitIndex, occupiedBits, teammateOccupiedBits }: IRookLegalMoves) => {
-  const fileNumber = fromBitIndex%8;
-  const rankNumber = ~~(fromBitIndex/8);
-  const northMoveMask = HFileSet.shiftLeft(fromBitIndex).shiftLeft(8);
-  const southMoveMask = AFileSet.shiftRightUnsigned((7-fileNumber)+(7-rankNumber)*8).shiftRightUnsigned(8);
-  const westMoveMask = Rank1Set.shiftRightUnsigned(1+fileNumber).shiftLeft(rankNumber*8+fileNumber+1);
-  const eastMoveMask = Rank1Set.shiftRightUnsigned(8-fileNumber).shiftLeft(rankNumber*8);
-  const fileMask = HFileSet.shiftLeft(fileNumber);
-  const rankMask = Rank1Set.shiftLeft(rankNumber*8);
-  const rookMoveMask = fileMask.or(rankMask);
-
-  const pseudoAttacks = rookMoveMask.and(occupiedBits);
-  //positive
-  const northAttacks = blockingPiece(pseudoAttacks, northMoveMask);
-  const westAttacks = blockingPiece(pseudoAttacks, westMoveMask);
-  //negative
-  const southAttacks = blockingPiece(pseudoAttacks, southMoveMask, true);
-  const eastAttacks = blockingPiece(pseudoAttacks, eastMoveMask, true);
-  const pseudoMoves = northAttacks.or(westAttacks).or(eastAttacks).or(southAttacks);
-  const legalMoves = pseudoMoves.and(allBitsSet.xor(teammateOccupiedBits));
-  logger(legalMoves);
-  return legalMoves;
-};
 const getBitIndexes = (bitString: Long) => {
   let algebricNotation:string[] = [];
   const bit = bitString.toString(2);
@@ -429,113 +410,6 @@ const getBitIndexes = (bitString: Long) => {
   }
 
   return algebricNotation;
-};
-interface IBishopLegalMoves {
-  fromBitIndex: number,
-  occupiedBits: Long,
-  teammateOccupiedBits: Long
-}
-const bishopLegalMoves = ({fromBitIndex, occupiedBits, teammateOccupiedBits }: IBishopLegalMoves) => {
-    
-  const fileNumber = fromBitIndex%8;
-  const rankNumber = ~~(fromBitIndex/8);
-  const bishopSquare = new Long(1,0,true).shiftLeft(fromBitIndex);
-  const antiDiagonalMask= new Long(0x8040201,0x80402010,true);
-  const diagonalMask = new Long(0x10204080,0x1020408,true);
-  //helpers determine howmany moves bishop can move to direction
-  const NWhelper = fileNumber-rankNumber >=0 ?
-    fileNumber*8 // positive
-    :rankNumber*8; //negative
-  const NEhelper = (7-fileNumber)-rankNumber >=0 ?
-    (7-fileNumber)*8 // positive
-    :rankNumber*8; //negative
-  const SEhelper = fileNumber-rankNumber >= 0 ?
-    (7-rankNumber)*8 //positive
-    : (7-fileNumber)*8;// negative
-  const SWhelper = (7-fileNumber)-rankNumber >= 0 ?
-    (7-rankNumber)*8 //positive
-    : (fileNumber)*8;// negative
-  const NWMask = antiDiagonalMask.shiftLeft(NWhelper).shiftRightUnsigned(NWhelper).shiftLeft(fromBitIndex);
-  const NEMask = diagonalMask.shiftLeft(NEhelper).shiftRightUnsigned(NEhelper+7).shiftLeft(fromBitIndex);
-  const SEMask = antiDiagonalMask.shiftRightUnsigned(SEhelper).shiftLeft(SEhelper).shiftRightUnsigned(63-fromBitIndex);
-  const SWMask = diagonalMask.shiftRightUnsigned(SWhelper).shiftLeft(SWhelper+7).shiftRightUnsigned(63-fromBitIndex);
-  const pseudoMovesNW = checkForADiagonalBlockingPieces({possibleMoves:NWMask.xor(bishopSquare), occupiedSquares: occupiedBits});
-  const pseudoMovesNE = checkForDiagonalBlockingPieces({possibleMoves:NEMask.xor(bishopSquare), occupiedSquares: occupiedBits});
-  const pseudoMovesSW = checkForDiagonalBlockingPieces({possibleMoves:SWMask.xor(bishopSquare), occupiedSquares: occupiedBits});
-  const pseudoMovesSE = checkForADiagonalBlockingPieces({possibleMoves:SEMask.xor(bishopSquare), occupiedSquares: occupiedBits});
-  const pseudoMoves = blockingPiece(pseudoMovesNW, NWMask).or(blockingPiece(pseudoMovesNE, NEMask)).or(blockingPiece(pseudoMovesSE, SEMask,true)).or(blockingPiece(pseudoMovesSW, SWMask, true));
-
-  return pseudoMoves.and(teammateOccupiedBits.not());
-};
-interface ICheckForBlockingPieces {
-  possibleMoves:Long
-  occupiedSquares:Long
-}
-function checkForDiagonalBlockingPieces({ possibleMoves, occupiedSquares }: ICheckForBlockingPieces) {
-  var blockedMoves = possibleMoves;
-  const oneBit= new Long(1, 0, true);
-  const moves = possibleMoves.toString(2);
-  for (let i = moves.length-1; i>=possibleMoves.countTrailingZeros(); i-=7) {
-    var moveBit = oneBit.shiftLeft(i);
-    if (!checkBitAt(occupiedSquares.and(moveBit), i)) {
-      blockedMoves= blockedMoves.and(moveBit.not());
-    }
-  }
-  return blockedMoves;
-}
-function checkForADiagonalBlockingPieces({ possibleMoves, occupiedSquares }: ICheckForBlockingPieces) {
-  var blockedMoves = possibleMoves;
-  const oneBit= new Long(1, 0, true);
-  const moves = possibleMoves.toString(2);
-  for (let i = moves.length-1; i>=0; i-=9) {
-    var moveBit = oneBit.shiftLeft(i);
-    if (!checkBitAt(occupiedSquares.and(moveBit), i)) {
-      blockedMoves= blockedMoves.and(moveBit.not());
-    }
-  }
-  return blockedMoves;
-}
-interface IKingPseudoMoves {
-  kingPosition: Long
-}
-const kingPseudoMoves = ({kingPosition}: IKingPseudoMoves) => {
-
-  const NorthWest = kingPosition.shiftLeft(9);
-  const NorthEast = kingPosition.shiftLeft(7);
-  const North = kingPosition.shiftLeft(8);
-  const West = kingPosition.shiftLeft(1);
-  const East = kingPosition.shiftRightUnsigned(1);
-  const South = kingPosition.shiftRightUnsigned(8);
-  const SouthWest = kingPosition.shiftRightUnsigned(7);
-  const SouthEast = kingPosition.shiftRightUnsigned(9);
-
-  const moveMask = West.or(North).or(East).or(South).or(NorthEast).or(NorthWest).or(SouthEast).or(SouthWest);
-  //do masking 
-  logger(AFileSet.not());
-  logger(HFileSet.not());
-  if(kingPosition.and(AFileSet).isZero()) return moveMask.and(AFileSet.not());
-  if(kingPosition.and(HFileSet).isZero()) return moveMask.and(HFileSet.not());
-  return moveMask;
-};
-interface IknightPseudoMoves {
-  knightPosition: Long,
-}
-const knightPseudoMoves = ({knightPosition}: IknightPseudoMoves) => {
-
-  const noNorthWest = knightPosition.shiftLeft(17);
-  const noNorthEast = knightPosition.shiftLeft(15);
-  const noWestWest = knightPosition.shiftLeft(6);
-  const noEastEast = knightPosition.shiftLeft(10);
-  const soSouthWest = knightPosition.shiftRightUnsigned(17);
-  const soSouthEast = knightPosition.shiftRightUnsigned(15);
-  const soWestWest = knightPosition.shiftRightUnsigned(10);
-  const soEastEast = knightPosition.shiftRightUnsigned(6);
-  const PseudoMask = knightPosition.or(noNorthWest).or(noNorthEast).or(soSouthWest).or(soSouthEast).or(noEastEast).or(noWestWest).or(soWestWest).or(soEastEast);
-
-  //remove moves that portal to other side
-  if(!ABFileMask.and(knightPosition).isZero()) return PseudoMask.and(GHFileMask.not());  //remove GHFILE
-  if(!GHFileMask.and(knightPosition).isZero()) return PseudoMask.and(ABFileMask.not());  //remove ABFILE
-  return PseudoMask; 
 };
 export default useChess;
 

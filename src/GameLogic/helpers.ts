@@ -1,5 +1,6 @@
 import Long from 'long';
 
+//help to log bitboard in console effeciently
 export const logger = ( l : Long) => console.log(l.toString(2).padStart(64,'0').match(/.{1,8}/g)?.join('\n'));
 
 export function isNumeric(expectedValue:string) {
