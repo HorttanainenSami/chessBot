@@ -1,4 +1,6 @@
 import Long from 'long';
+import { Piece } from '../Types';
+
 
 //help to log bitboard in console effeciently
 export const logger = ( l : Long) => console.log(l.toString(2).padStart(64,'0').match(/.{1,8}/g)?.join('\n'));
@@ -50,3 +52,5 @@ export enum SquareBit {
   'h7', 'g7', 'f7', 'e7', 'd7', 'c7', 'b7', 'a7',
   'h8', 'g8', 'f8', 'e8', 'd8', 'c8', 'b8', 'a8',
 }
+
+export const getBitPiece = (piece: Piece):bitPieces => bitPieces[(piece.charAt(0)==='b'?piece.charAt(1).toLowerCase():piece.charAt(1).toLocaleUpperCase())as keyof typeof bitPieces];

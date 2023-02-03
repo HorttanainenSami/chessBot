@@ -1,5 +1,6 @@
 import Long from 'long';
-import { blockingPiece, logger, checkBitAt } from './helpers';
+import { blockingPiece, checkBitAt } from './helpers';
+import { Color } from '../Types';
 
 //initialize masks
 const HFileSet = new Long(0x1010101, 0x1010101, true);
@@ -147,11 +148,11 @@ interface ICheckForBlockingPieces {
 // checks diagonal that starts from up-left and ends to down-right
 // returns all blocking pieces in that diagonal
 function checkForDiagonalBlockingPieces({ possibleMoves, occupiedSquares }: ICheckForBlockingPieces) {
-  var blockedMoves = possibleMoves;
+  let blockedMoves = possibleMoves;
   const oneBit= new Long(1, 0, true);
   const moves = possibleMoves.toString(2);
   for (let i = moves.length-1; i>=possibleMoves.countTrailingZeros(); i-=7) {
-    var moveBit = oneBit.shiftLeft(i);
+    let moveBit = oneBit.shiftLeft(i);
     if (!checkBitAt(occupiedSquares.and(moveBit), i)) {
       blockedMoves= blockedMoves.and(moveBit.not());
     }
@@ -161,11 +162,11 @@ function checkForDiagonalBlockingPieces({ possibleMoves, occupiedSquares }: IChe
 // checks diagonal that starts from down-left and ends to up-right
 // returns all blocking pieces in that diagonal
 function checkForADiagonalBlockingPieces({ possibleMoves, occupiedSquares }: ICheckForBlockingPieces) {
-  var blockedMoves = possibleMoves;
+  let blockedMoves = possibleMoves;
   const oneBit= new Long(1, 0, true);
   const moves = possibleMoves.toString(2);
   for (let i = moves.length-1; i>=0; i-=9) {
-    var moveBit = oneBit.shiftLeft(i);
+    let moveBit = oneBit.shiftLeft(i);
     if (!checkBitAt(occupiedSquares.and(moveBit), i)) {
       blockedMoves= blockedMoves.and(moveBit.not());
     }
@@ -202,7 +203,6 @@ export const rookPseudoMoves = ({ fromBitIndex }: IRookPseudoMoves ) => {
   const fileMask = HFileSet.shiftLeft(fileNumber);
   const rankMask = Rank1Set.shiftLeft(rankNumber*8);
   const rookMoveMask = fileMask.or(rankMask);
-  logger(rookMoveMask);
   return rookMoveMask;
 };
 interface IRookLegalMoves {
@@ -231,3 +231,60 @@ export const rookLegalMoves = ({rookMoveMask, fromBitIndex, occupiedSquares, tea
   return legalMoves;
 };
 
+interface IpawnPseudoMoves {
+  fromBitIndex:number
+  color: Color,
+}
+export const pawnPseudoMoves = ({fromBitIndex, color}: IpawnPseudoMoves) => {
+
+  const rankNumber = ~~(fromBitIndex/8);
+  let moveMask = Long.UZERO;
+  let moveOne = color === 'b' ? Long.UONE.shiftLeft(fromBitIndex).shiftRightUnsigned(8):Long.UONE.shiftLeft(fromBitIndex+8);
+  let moveTwo = color === 'b' ? moveOne.shiftRightUnsigned(8):moveOne.shiftLeft(8);
+  const blackInStartPosition = color === 'b' && rankNumber === 6; 
+  const whiteInStartPosition = color ==='w' && rankNumber === 1;
+  if(blackInStartPosition || whiteInStartPosition){
+    moveMask = moveMask.or(moveOne).or(moveTwo);
+  }else{
+    moveMask = moveOne;
+  }
+
+  return moveMask;
+};
+export const pawnPseudoAttacks = ({fromBitIndex, color}:IpawnPseudoMoves) => {
+  
+  let moveMask = Long.UZERO;
+  if(color ==='b'){
+    //eat left
+    moveMask=moveMask.or(Long.UONE.shiftLeft(fromBitIndex-7).and(HFileSet.not()));
+    //eat right
+    moveMask=moveMask.or(Long.UONE.shiftLeft(fromBitIndex-9).and(AFileSet.not()));
+  }else{
+    //eat right
+    moveMask=moveMask.or(Long.UONE.shiftLeft(fromBitIndex+7).and(AFileSet.not()));
+    //eat left
+    moveMask=moveMask.or(Long.UONE.shiftLeft(fromBitIndex+9).and(HFileSet.not()));
+  }
+  return moveMask;
+};
+interface IPawnLegalMoves extends IpawnPseudoMoves {
+  enemyOccupied: Long,
+  occupiedSquares: Long,
+}
+export const pawnLegalMoves = ({ fromBitIndex, color, enemyOccupied, occupiedSquares }: IPawnLegalMoves) => {
+  // helpers to determine if piece is blocked from quiet moving
+  const blockingPieceIndex = color ==='w' ? 8 : -8;
+  const blockingPiece = Long.UONE.shiftLeft(fromBitIndex+blockingPieceIndex);
+
+  let mask = Long.UZERO;
+  const pseudoMoves = pawnPseudoMoves({fromBitIndex, color});
+  const pseudoAttacks = pawnPseudoAttacks({fromBitIndex, color});
+  //if blocked prevent moving over piece if in start square
+  if(blockingPiece.and(occupiedSquares).isZero()){
+    mask = pseudoMoves.and(occupiedSquares.not());
+  }
+  //Include attacks if square contains enemy
+  mask = mask.or(pseudoAttacks.and(enemyOccupied));
+
+  return mask;
+};

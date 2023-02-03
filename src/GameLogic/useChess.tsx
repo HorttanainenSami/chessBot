@@ -1,13 +1,8 @@
 import { useState } from 'react';
 import Long from 'long';
-import { bitPieces, SquareBit, logger, isNumeric, checkBitAt, blockingPiece } from './helpers';
-import { Square, Piece, Move, Color } from '../Types';
-import { rookLegalMoves, rookPseudoMoves, bishopLegalMoves, bishopPseudoMoves, kingPseudoMoves, knightPseudoMoves } from './moveMasks';
-
-
-const HFileSet = new Long(0x1010101, 0x1010101, true);
-const AFileSet = new Long(0x80808080, 0x80808080, true);
-export const allBitsSet = new Long(0xFFFFFFFF, 0xFFFFFFFF, true);
+import { bitPieces, SquareBit, logger, isNumeric, checkBitAt } from './helpers';
+import { Square, Move, Color } from '../Types';
+import { pawnLegalMoves, rookLegalMoves, rookPseudoMoves, bishopLegalMoves, bishopPseudoMoves, kingPseudoMoves, knightPseudoMoves } from './moveMasks';
 /*
 pieces represented in 64 bit, 1 = piece, 0 = not piece 
 */
@@ -43,6 +38,7 @@ const useChess = () => {
   //checks if castling is possible '' means not possible
   const [ castling, setCastling ] = useState('KQkq');
   const [ elPassant, setElPassant ] = useState<string>('-');
+  // can be used to set tie if reaches to 50
   const [ halfMove, setHalfMove ] = useState(0);
   const [ fullMove, setFullMove ] = useState(1);
 
@@ -60,8 +56,8 @@ const useChess = () => {
     return algebricNotation;
     
   };
+  //TODO to check discovered check and prevent movement if it occurs
   const move = ({ square, piece, color } : IMoves):Long => {
-    //return only one
     const fromBitIndex = SquareBit[square];
     const oneBit = new Long(1,0,true);
     const currentPiecePosition = oneBit.shiftLeft(fromBitIndex);
@@ -71,16 +67,17 @@ const useChess = () => {
       return acc.or(curr);
     }, new Long(0,0,true));
     const whiteOccupiedBits = occupiedBits.xor(blackOccupiedBits);
-    const emptySquares = occupiedBits.xor(allBitsSet);
     switch(piece){
 
     case 0:{
       //elpassant
-      return pawnLegalMoves({ fromBitIndex, enemyOccupied: blackOccupiedBits, emptySquares, color: 'w', occupiedBits });
+      const legalMoves = pawnLegalMoves({fromBitIndex, color, enemyOccupied: blackOccupiedBits, occupiedSquares:occupiedBits}); 
+      return (legalMoves);
     }
     case 1:{
       //elpassant
-      return pawnLegalMoves({ fromBitIndex, enemyOccupied: whiteOccupiedBits, emptySquares, color: 'b', occupiedBits });
+      const legalMoves = pawnLegalMoves({fromBitIndex, color, enemyOccupied: whiteOccupiedBits, occupiedSquares:occupiedBits}); 
+      return legalMoves;
     }
     case 2:{
       const pseudoMoves = rookPseudoMoves({ fromBitIndex });
@@ -128,77 +125,96 @@ const useChess = () => {
     }
     case 10:{
       const pseudoMoves =  kingPseudoMoves({kingPosition: currentPiecePosition});
-      // add here also defended squares filter
+      // TODO add here also defended squares filter
       return pseudoMoves.and(whiteOccupiedBits.not());
     }
     case 11:{
       const pseudoMoves =  kingPseudoMoves({kingPosition: currentPiecePosition});
-      // add here also defended squares filter
+      // TODO add here also defended squares filter
       return pseudoMoves.and(blackOccupiedBits.not());
     }
     default: return new Long(0,0,true);
     }
 
   };
+  const updateGameState = ({piece, color, from, to} : Move) => {
+    
+    const toBitIndex = SquareBit[to];
+    const fromBitIndex = SquareBit[from];
+    let moveBoard = gameState[piece] as Long;
+    //update moved piece
+    const toMask = Long.UONE.shiftLeft(toBitIndex);
+    const fromMask = Long.UONE.shiftLeft(fromBitIndex);
+    moveBoard = moveBoard.and(fromMask.not());
+    moveBoard = moveBoard.or(toMask);
+    //remove captured pieces
+    const deletedPieces = removeCapturedPiece(toBitIndex, color); 
 
+
+
+
+    //promote pawn
+    //set check or mate
+    //set/remove elpassant
+
+    let modifiedGameState = gameState;
+    if(deletedPieces){
+      modifiedGameState[deletedPieces.i] = deletedPieces.pieces;
+    }
+    modifiedGameState[piece] = moveBoard;
+
+
+    //final state changes
+    setGameState(modifiedGameState);
+    //set if pawn moved or piece captured to 0 otherwise increment
+    if(piece === 1 || piece === 0|| deletedPieces){
+      setHalfMove(0);
+    }else{
+      setHalfMove(r => r+=1);
+    }
+
+    if(turn ==='b'){
+      setFullMove(r => r+=1);
+    }
+    setTurn(r => r==='b'?'w':'b');
+    
+  };
+  const removeCapturedPiece = (fromBitIndex: number, color: Color) => {
+    // white pieces is even and black odd in gamestate Array so we need to set this even for black odd
+    const forHelper = color==='w'? 1:0;
+    const capturedPiece = Long.UONE.shiftLeft(fromBitIndex);
+    logger(capturedPiece);
+    for(let i = forHelper; i<gameState.length; i+=2){
+      let pieces = gameState[i] as Long;
+      if(!capturedPiece.and(pieces).isZero()){
+        pieces = pieces.and(capturedPiece.not());
+        return {i, pieces};
+      }
+    }
+
+  };
   // Move object or Algerbaic notation ie. Ng3 means knigth moves for g3 coortidane
-  const makeMove = (move: Move) => {
-    console.log(move); 
-    //returns true if legal false if illegal 
-    console.log(validateMove(move));
-
-
-    return {};
+  const makeMove = (props : Move) => {
+    const {piece, color, from, to} = props;
+    const obj = {
+      square: from,
+      color,
+      piece
+    };
+    if(color !== turn){
+      return false;
+    }
+    const toBitIndex = SquareBit[to];
+    const targetMask = Long.UONE.shiftLeft(toBitIndex);
+    const validate =  !move(obj).and(targetMask).isZero();
+    if(validate) {
+      updateGameState(props);
+      return true;
+    }
+    return false;
   };
   // returns true if move is legal to perform
   // checked only when makeMove is performed
-  const validateMove = ({ from, to, piece, promotion, color }: Move) => {
-    const fromBitIndex = SquareBit[from];
-    const toBitIndex = SquareBit[to];
-    const oneBit = new Long(1,0,true);
-    const occupiedBits = gameState.reduce((acc, curr) => acc.or(curr), new Long(0x0,0x0, true));
-    const blackOccupiedBits = gameState.reduce((acc, curr,i) => {
-      if(i%2===0) return acc;
-      return acc.or(curr);
-    }, new Long(0,0,true));
-    const whiteOccupiedBits = occupiedBits.xor(blackOccupiedBits);
-    const emptySquares = occupiedBits.xor(allBitsSet);
-    console.log(bitPieces[piece]);
-    switch(piece){
-    case 0:{
-      const legalMoves = pawnLegalMoves({ fromBitIndex, enemyOccupied: blackOccupiedBits, emptySquares, color: 'w', occupiedBits });
-      const moveMask = legalMoves.and(oneBit.shiftLeft(toBitIndex));
-      return checkBitAt(moveMask,toBitIndex);
-    }
-    case 1:{
-      const legalMoves = pawnLegalMoves({ fromBitIndex, enemyOccupied: whiteOccupiedBits, emptySquares, color: 'b', occupiedBits });
-      const moveMask = legalMoves.and(oneBit.shiftLeft(toBitIndex));
-      return checkBitAt(moveMask, toBitIndex);
-    }
-    //rooks
-    case 2:{
-      //rookLegalMoves({ fromBitIndex, occupiedBits, teammateOccupiedBits: whiteOccupiedBits });
-      return false;
-    }
-    case 3:{
-      //rookLegalMoves({ fromBitIndex, occupiedBits, teammateOccupiedBits: blackOccupiedBits });
-      return false;
-    }
-    case 4:{
-      //rookLegalMoves({ fromBitIndex, occupiedBits, teammateOccupiedBits: whiteOccupiedBits });
-      return false;
-    }
-    case 5:
-    case 6:
-    case 7:
-    case 8:
-    case 9:
-    case 10:
-    case 11:
-    }
-  
-    return {};
-  };
   const loadFEN = (Fen: string) => {
     const splittedFen = Fen.split(' ');
     if(splittedFen.length !=6) throw new Error('Fen not in correct form');
@@ -284,7 +300,6 @@ const useChess = () => {
     let i = 63;
     for( let c of fstate) {
       if(c === '/'){
-        console.log(i, '/');
         continue;
       }
       if(isNumeric(c)){
@@ -353,47 +368,6 @@ const useChess = () => {
   };
 
   return { loadFEN, clearBoard, getFEN, moves, gameState, makeMove};
-};
-interface IPawnLegalMoves {
-  fromBitIndex: number,
-  emptySquares: Long,
-  enemyOccupied: Long,
-  occupiedBits: Long,
-  color: Color,
-}
-const pawnLegalMoves = ({fromBitIndex, enemyOccupied, emptySquares, color, occupiedBits}: IPawnLegalMoves) => {
-  //if white in 2 rank and black in 7 rank move 2 forward possible
-  const rankNumber = ~~(fromBitIndex/8);
-  let movePawnMask = new Long(1,0,true);
-  let possibleMoves = new Long(0,0,true);
-  let eat= new Long(1,0,true);
-  let pseudoMoves = new Long(1,0,true);
-  if(color === 'b'){
-    const blockingPiece = checkBitAt(movePawnMask.shiftLeft(fromBitIndex-8).and(occupiedBits), fromBitIndex-8);
-    movePawnMask = (rankNumber === 6 && !blockingPiece)?
-      movePawnMask.add(0x100).shiftLeft(fromBitIndex-16)
-      : movePawnMask.shiftLeft(fromBitIndex-8);
-    possibleMoves = emptySquares.and(movePawnMask);
-    //eat left
-    pseudoMoves=eat.shiftLeft(fromBitIndex-7).and(HFileSet.not());
-    //eat right
-    pseudoMoves=pseudoMoves.or(eat.shiftLeft(fromBitIndex-9).and(AFileSet.not()));
-  }else{
-    const blockingPiece = checkBitAt(movePawnMask.shiftLeft(fromBitIndex+8).and(occupiedBits),fromBitIndex+8);
-
-    movePawnMask = (rankNumber === 1 && !blockingPiece)?
-      movePawnMask.add(0x100).shiftLeft(fromBitIndex+8)
-      : movePawnMask.shiftLeft(fromBitIndex+8);
-
-    possibleMoves = emptySquares.and(movePawnMask);
-    //eat left
-    pseudoMoves=eat.shiftLeft(9+fromBitIndex).and(HFileSet.not());
-    //eat right
-    pseudoMoves=pseudoMoves.or(eat.shiftLeft(7+fromBitIndex).and(AFileSet.not()));
-  }
-  //filter if not anything to eat
-  pseudoMoves = pseudoMoves.and(enemyOccupied);
-  return possibleMoves.or(pseudoMoves);
 };
 const getBitIndexes = (bitString: Long) => {
   let algebricNotation:string[] = [];

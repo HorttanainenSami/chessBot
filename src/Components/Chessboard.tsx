@@ -2,9 +2,8 @@ import React, { useState } from 'react';
 import { Chessboard as Cb } from 'react-chessboard';
 import { makeMove } from '../bot/moves';
 import useChess, { IMoves } from '../GameLogic/useChess';
-import { logger, bitPieces} from '../GameLogic/helpers';
+import { logger, bitPieces, getBitPiece} from '../GameLogic/helpers';
 import { Square, Piece, Color } from '../Types';
-import Long from 'long';
 
 const buttonStyle = {
   cursor: 'pointer',
@@ -28,8 +27,8 @@ const Chessboard = () => {
   //@ts-ignore: next-line
   function onDrop(sourceSquare: Square, targetSquare: Square, piece: Piece) : boolean {
     //convert piece to enum that reprecents pieces
-    const bitPiece = bitPieces[(piece.charAt(0)==='b'?piece.charAt(1).toLowerCase():piece.charAt(1).toLocaleUpperCase())as keyof typeof bitPieces];
-    const move1 = chessMove({
+    const bitPiece = getBitPiece(piece);
+    const move = chessMove({
       from: sourceSquare,
       to: targetSquare,
       piece: bitPiece,
@@ -37,10 +36,8 @@ const Chessboard = () => {
       color: piece.charAt(0) as Color,
     });
 
-    // if illegal move
-    // return false
+    return move;
 
-    return true;
   }
   function getMoveOptions(move:IMoves) {
     const legalMoves = moves(move);
