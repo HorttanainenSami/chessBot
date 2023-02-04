@@ -1,6 +1,11 @@
 name: API workflow
-
-on: [push, pull_request]
+on:
+  push:
+    branches:
+     - master
+  pull_request:
+    branches: [master]
+    types: [opened, synchronize]
 jobs:
   test_and_lint:
     runs-on: ubuntu-20.04
