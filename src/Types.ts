@@ -1,9 +1,9 @@
 import { bitPieces } from './GameLogic/helpers';
 export type Piece = 'wP' | 'wB' | 'wN' | 'wR' | 'wQ' | 'wK' | 'bP' | 'bB' | 'bN' | 'bR' | 'bQ' | 'bK';
 
-export type Color = 'black' | 'white';
+export type Color = 'b' | 'w';
 
-export type PieceSymbol = 'p' | 'n' | 'b' | 'r' | 'q' | 'k';
+export type PieceSymbol = 'p' | 'r' | 'b' | 'n' | 'q' | 'k';
 
 export type Square =
     'a8' | 'b8' | 'c8' | 'd8' | 'e8' | 'f8' | 'g8' | 'h8' |
