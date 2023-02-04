@@ -1,0 +1,24 @@
+name: API workflow
+
+on: [push, pull_request]
+jobs:
+  test_and_lint:
+    runs-on: ubuntu-20.04
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
+        with:
+          node-version: '16'
+      - name: npm install 
+        run: npm install
+
+      - name: lint
+        run: npm run lint
+
+      - name: Run tests and collect coverage
+        run: npm test -- --coverage .
+      - name: Upload coverage reports to Codecov
+        run: |
+          curl -Os https://uploader.codecov.io/latest/linux/codecov
+          chmod +x codecov
+          ./codecov -t ${CODECOV_TOKEN}
