@@ -1,4 +1,4 @@
-# Tiralabra - Shakki tekoäly
+# Tiralabra - Shakki tekoäly [![codecov](https://codecov.io/github/HorttanainenSami/chessBot/branch/master/graph/badge.svg?token=57IZY520AR)](https://codecov.io/github/HorttanainenSami/chessBot)
 
 Tässä projektissa rakennamme shakki tekoälyn. Projekti on tehty HY:n tira-labra kurssilla
 
