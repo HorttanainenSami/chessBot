@@ -1,5 +1,5 @@
 import Long from 'long';
-import { removeBlockedMoves, checkBitAt, logger } from './helpers';
+import { SquareBit, removeBlockedMoves, checkBitAt, logger } from './helpers';
 import { Color } from '../Types';
 
 //initialize masks
@@ -144,7 +144,7 @@ interface IbishopLegalMoves {
   teammateOccupiedBits: Long;
 }
 //returns bishops all current legal moves
-//legal moves includes moves that contain enemy pawn attack and move to empty square
+//legal moves includes moves that contain enemy piece to attack and move to empty square
 export const bishopLegalMoves = ({
   teammateOccupiedBits,
   fromBitIndex,
@@ -175,14 +175,6 @@ export const bishopLegalMoves = ({
     possibleMoves: possibleMoves.and(SEMask).xor(bishopPosition),
     occupiedSquares: occupiedBits,
   });
-
-  //get blocking piece that is closest to moving piece
-  /*
-  logger(blockingPiecesNW);
-  logger(blockingPiecesNE);
-  logger(blockingPiecesSW);
-  logger(blockingPiecesSE);
-  */
   const pseudoAttackNW = removeBlockedMoves(blockingPiecesNW, NWMask);
   const pseudoAttackNE = removeBlockedMoves(blockingPiecesNE, NEMask);
   const pseudoAttackSW = removeBlockedMoves(blockingPiecesSW, SWMask, true);
@@ -334,6 +326,7 @@ export const pawnPseudoMoves = ({ fromBitIndex, color }: IpawnPseudoMoves) => {
 
   return moveMask;
 };
+
 export const pawnPseudoAttacks = ({
   fromBitIndex,
   color,
@@ -363,26 +356,40 @@ export const pawnPseudoAttacks = ({
 interface IPawnLegalMoves extends IpawnPseudoMoves {
   enemyOccupied: Long;
   occupiedSquares: Long;
+  elPassant: SquareBit | null;
 }
 export const pawnLegalMoves = ({
   fromBitIndex,
   color,
   enemyOccupied,
   occupiedSquares,
+  elPassant,
 }: IPawnLegalMoves) => {
   // helpers to determine if piece is blocked from quiet moving
   const blockingPieceIndex = color === 'w' ? 8 : -8;
   const blockingPiece = Long.UONE.shiftLeft(fromBitIndex + blockingPieceIndex);
-
   let mask = Long.UZERO;
   const pseudoMoves = pawnPseudoMoves({ fromBitIndex, color });
-  const pseudoAttacks = pawnPseudoAttacks({ fromBitIndex, color });
+  const pseudoAttacks = pawnPseudoAttacks({
+    fromBitIndex,
+    color,
+  });
   //if blocked prevent moving over piece if in start square
   if (blockingPiece.and(occupiedSquares).isZero()) {
     mask = pseudoMoves.and(occupiedSquares.not());
   }
   //Include attacks if square contains enemy
-  mask = mask.or(pseudoAttacks.and(enemyOccupied));
+  let includingElPassant = enemyOccupied;
+  if (elPassant) {
+    const elpassantRank = ~~(elPassant / 8);
+    const enemyElpassantRank = color === 'w' ? 5 : 2;
+    if (elpassantRank === enemyElpassantRank) {
+      includingElPassant = Long.UONE.shiftLeft(elPassant).or(enemyOccupied);
+    }
+  }
+  mask = mask.or(pseudoAttacks.and(includingElPassant));
 
+  // include elpassand
+  if (elPassant === null) return mask;
   return mask;
 };

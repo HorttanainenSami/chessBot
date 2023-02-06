@@ -444,9 +444,16 @@ describe('pawnLegalMoves', () => {
     const enemyOccupied = Long.UZERO;
     const occupiedSquares = Long.fromString('0x100', true, 16);
     const expected = Long.fromString('0x10100000000', true, 16);
+    const elPassant = null;
 
     expect(
-      pawnLegalMoves({ fromBitIndex, color, enemyOccupied, occupiedSquares })
+      pawnLegalMoves({
+        fromBitIndex,
+        color,
+        enemyOccupied,
+        occupiedSquares,
+        elPassant,
+      })
     ).toEqual(expected);
   });
 
@@ -456,9 +463,16 @@ describe('pawnLegalMoves', () => {
     const enemyOccupied = Long.UZERO;
     const occupiedSquares = Long.fromString('0x100', true, 16);
     const expected = Long.fromString('0x1010000', true, 16);
+    const elPassant = null;
 
     expect(
-      pawnLegalMoves({ fromBitIndex, color, enemyOccupied, occupiedSquares })
+      pawnLegalMoves({
+        fromBitIndex,
+        color,
+        enemyOccupied,
+        occupiedSquares,
+        elPassant,
+      })
     ).toEqual(expected);
   });
 
@@ -468,9 +482,16 @@ describe('pawnLegalMoves', () => {
     const enemyOccupied = Long.fromString('0xff0000000000', true, 16);
     const occupiedSquares = Long.fromString('0x2ff0000000000', true, 16);
     const expected = Long.fromString('0x50000000000', true, 16);
+    const elPassant = null;
 
     expect(
-      pawnLegalMoves({ fromBitIndex, color, enemyOccupied, occupiedSquares })
+      pawnLegalMoves({
+        fromBitIndex,
+        color,
+        enemyOccupied,
+        occupiedSquares,
+        elPassant,
+      })
     ).toEqual(expected);
   });
 
@@ -480,9 +501,15 @@ describe('pawnLegalMoves', () => {
     const enemyOccupied = Long.fromString('0xff0000', true, 16);
     const occupiedSquares = Long.fromString('0xff0200', true, 16);
     const expected = Long.fromString('0x50000', true, 16);
-
+    const elPassant = null;
     expect(
-      pawnLegalMoves({ fromBitIndex, color, enemyOccupied, occupiedSquares })
+      pawnLegalMoves({
+        fromBitIndex,
+        color,
+        enemyOccupied,
+        occupiedSquares,
+        elPassant,
+      })
     ).toEqual(expected);
   });
 
@@ -492,9 +519,16 @@ describe('pawnLegalMoves', () => {
     const enemyOccupied = Long.UZERO;
     const occupiedSquares = Long.fromString('0x2020000000000', true, 16);
     const expected = Long.fromString('0x0', true, 16);
+    const elPassant = null;
 
     expect(
-      pawnLegalMoves({ fromBitIndex, color, enemyOccupied, occupiedSquares })
+      pawnLegalMoves({
+        fromBitIndex,
+        color,
+        enemyOccupied,
+        occupiedSquares,
+        elPassant,
+      })
     ).toEqual(expected);
   });
 
@@ -504,9 +538,70 @@ describe('pawnLegalMoves', () => {
     const enemyOccupied = Long.UZERO;
     const occupiedSquares = Long.fromString('0x20200', true, 16);
     const expected = Long.fromString('0x0', true, 16);
+    const elPassant = null;
 
     expect(
-      pawnLegalMoves({ fromBitIndex, color, enemyOccupied, occupiedSquares })
+      pawnLegalMoves({
+        fromBitIndex,
+        color,
+        enemyOccupied,
+        occupiedSquares,
+        elPassant,
+      })
+    ).toEqual(expected);
+  });
+  it('returns correct legal moves for a white pawn that is in position to elpassant', () => {
+    const fromBitIndex = 37;
+    const color = 'w';
+    const enemyOccupied = Long.fromString('0xef001000000000', true, 16);
+    const occupiedSquares = Long.fromString('0xcf003000000000', true, 16);
+    const expected = Long.fromString('0x300000000000', true, 16);
+    const elPassant = 44;
+
+    expect(
+      pawnLegalMoves({
+        fromBitIndex,
+        color,
+        enemyOccupied,
+        occupiedSquares,
+        elPassant,
+      })
+    ).toEqual(expected);
+  });
+  it('returns correct legal moves for a white pawn that is not in square to elpassant', () => {
+    const fromBitIndex = 45;
+    const color = 'w';
+    const enemyOccupied = Long.fromString('0xef001000000000', true, 16);
+    const occupiedSquares = Long.fromString('0xcf201000000000', true, 16);
+    const expected = Long.fromString('0x60000000000000', true, 16);
+    const elPassant = 44;
+
+    expect(
+      pawnLegalMoves({
+        fromBitIndex,
+        color,
+        enemyOccupied,
+        occupiedSquares,
+        elPassant,
+      })
+    ).toEqual(expected);
+  });
+  it('returns correct legal moves for a black pawn that is not in square to elpassant', () => {
+    const fromBitIndex = 27;
+    const color = 'b';
+    const enemyOccupied = Long.fromString('0x1000ef00', true, 16);
+    const occupiedSquares = Long.fromString('0x1800ef00', true, 16);
+    const expected = Long.fromString('0x180000', true, 16);
+    const elPassant = 20;
+
+    expect(
+      pawnLegalMoves({
+        fromBitIndex,
+        color,
+        enemyOccupied,
+        occupiedSquares,
+        elPassant,
+      })
     ).toEqual(expected);
   });
 });

@@ -11,6 +11,7 @@ import {
   kingPseudoMoves,
   knightPseudoMoves,
 } from './moveMasks';
+import { Piece } from 'chess.ts';
 /*
 pieces represented in 64 bit, 1 = piece, 0 = not piece 
 */
@@ -45,7 +46,7 @@ const useChess = () => {
   const [turn, setTurn] = useState<'w' | 'b'>('w');
   //checks if castling is possible '' means not possible
   const [castling, setCastling] = useState('KQkq');
-  const [elPassant, setElPassant] = useState<string>('-');
+  const [elPassant, setElPassant] = useState<SquareBit | null>(null);
   // can be used to set tie if reaches to 50
   const [halfMove, setHalfMove] = useState(0);
   const [fullMove, setFullMove] = useState(1);
@@ -78,134 +79,136 @@ const useChess = () => {
     }, new Long(0, 0, true));
     const whiteOccupiedBits = occupiedBits.xor(blackOccupiedBits);
     switch (piece) {
-    case 0: {
-      //elpassant
-      const legalMoves = pawnLegalMoves({
-        fromBitIndex,
-        color,
-        enemyOccupied: blackOccupiedBits,
-        occupiedSquares: occupiedBits,
-      });
-      return legalMoves;
-    }
-    case 1: {
-      //elpassant
-      const legalMoves = pawnLegalMoves({
-        fromBitIndex,
-        color,
-        enemyOccupied: whiteOccupiedBits,
-        occupiedSquares: occupiedBits,
-      });
-      return legalMoves;
-    }
-    case 2: {
-      const pseudoMoves = rookPseudoMoves({ fromBitIndex });
-      const legalMoves = rookLegalMoves({
-        fromBitIndex,
-        occupiedSquares: occupiedBits,
-        teammateOccupiedBits: whiteOccupiedBits,
-        rookMoveMask: pseudoMoves,
-      });
-      return legalMoves;
-    }
-    case 3: {
-      const pseudoMoves = rookPseudoMoves({ fromBitIndex });
-      const legalMoves = rookLegalMoves({
-        fromBitIndex,
-        occupiedSquares: occupiedBits,
-        teammateOccupiedBits: blackOccupiedBits,
-        rookMoveMask: pseudoMoves,
-      });
-      return legalMoves;
-    }
-    case 4: {
-      const pseudoMoves = bishopPseudoMoves({ fromBitIndex });
-      return bishopLegalMoves({
-        possibleMoves: pseudoMoves,
-        bishopPosition: currentPiecePosition,
-        occupiedBits,
-        fromBitIndex,
-        teammateOccupiedBits: whiteOccupiedBits,
-      });
-    }
-    case 5: {
-      const pseudoMoves = bishopPseudoMoves({ fromBitIndex });
-      return bishopLegalMoves({
-        possibleMoves: pseudoMoves,
-        bishopPosition: currentPiecePosition,
-        occupiedBits,
-        fromBitIndex,
-        teammateOccupiedBits: blackOccupiedBits,
-      });
-    }
-    case 6: {
-      const pseudoMoves = knightPseudoMoves({
-        knightPosition: currentPiecePosition,
-      });
-      const legalMoves = pseudoMoves.and(whiteOccupiedBits.not());
-      return legalMoves;
-    }
-    case 7: {
-      const pseudoMoves = knightPseudoMoves({
-        knightPosition: currentPiecePosition,
-      });
-      const legalMoves = pseudoMoves.and(blackOccupiedBits.not());
-      return legalMoves;
-    }
-    case 8: {
-      const pseudoMoves = bishopPseudoMoves({ fromBitIndex });
-      const diagonalLegalMoves = bishopLegalMoves({
-        possibleMoves: pseudoMoves,
-        bishopPosition: currentPiecePosition,
-        occupiedBits,
-        fromBitIndex,
-        teammateOccupiedBits: whiteOccupiedBits,
-      });
+      case 0: {
+        //elpassant
+        const legalMoves = pawnLegalMoves({
+          fromBitIndex,
+          color,
+          enemyOccupied: blackOccupiedBits,
+          occupiedSquares: occupiedBits,
+          elPassant,
+        });
+        return legalMoves;
+      }
+      case 1: {
+        //elpassant
+        const legalMoves = pawnLegalMoves({
+          fromBitIndex,
+          color,
+          enemyOccupied: whiteOccupiedBits,
+          occupiedSquares: occupiedBits,
+          elPassant,
+        });
+        return legalMoves;
+      }
+      case 2: {
+        const pseudoMoves = rookPseudoMoves({ fromBitIndex });
+        const legalMoves = rookLegalMoves({
+          fromBitIndex,
+          occupiedSquares: occupiedBits,
+          teammateOccupiedBits: whiteOccupiedBits,
+          rookMoveMask: pseudoMoves,
+        });
+        return legalMoves;
+      }
+      case 3: {
+        const pseudoMoves = rookPseudoMoves({ fromBitIndex });
+        const legalMoves = rookLegalMoves({
+          fromBitIndex,
+          occupiedSquares: occupiedBits,
+          teammateOccupiedBits: blackOccupiedBits,
+          rookMoveMask: pseudoMoves,
+        });
+        return legalMoves;
+      }
+      case 4: {
+        const pseudoMoves = bishopPseudoMoves({ fromBitIndex });
+        return bishopLegalMoves({
+          possibleMoves: pseudoMoves,
+          bishopPosition: currentPiecePosition,
+          occupiedBits,
+          fromBitIndex,
+          teammateOccupiedBits: whiteOccupiedBits,
+        });
+      }
+      case 5: {
+        const pseudoMoves = bishopPseudoMoves({ fromBitIndex });
+        return bishopLegalMoves({
+          possibleMoves: pseudoMoves,
+          bishopPosition: currentPiecePosition,
+          occupiedBits,
+          fromBitIndex,
+          teammateOccupiedBits: blackOccupiedBits,
+        });
+      }
+      case 6: {
+        const pseudoMoves = knightPseudoMoves({
+          knightPosition: currentPiecePosition,
+        });
+        const legalMoves = pseudoMoves.and(whiteOccupiedBits.not());
+        return legalMoves;
+      }
+      case 7: {
+        const pseudoMoves = knightPseudoMoves({
+          knightPosition: currentPiecePosition,
+        });
+        const legalMoves = pseudoMoves.and(blackOccupiedBits.not());
+        return legalMoves;
+      }
+      case 8: {
+        const pseudoMoves = bishopPseudoMoves({ fromBitIndex });
+        const diagonalLegalMoves = bishopLegalMoves({
+          possibleMoves: pseudoMoves,
+          bishopPosition: currentPiecePosition,
+          occupiedBits,
+          fromBitIndex,
+          teammateOccupiedBits: whiteOccupiedBits,
+        });
 
-      const RpseudoMoves = rookPseudoMoves({ fromBitIndex });
-      const RlegalMoves = rookLegalMoves({
-        fromBitIndex,
-        occupiedSquares: occupiedBits,
-        teammateOccupiedBits: whiteOccupiedBits,
-        rookMoveMask: RpseudoMoves,
-      });
-      return diagonalLegalMoves.or(RlegalMoves);
-    }
-    case 9: {
-      const pseudoMoves = bishopPseudoMoves({ fromBitIndex });
-      const diagonalLegalMoves = bishopLegalMoves({
-        possibleMoves: pseudoMoves,
-        bishopPosition: currentPiecePosition,
-        occupiedBits,
-        fromBitIndex,
-        teammateOccupiedBits: blackOccupiedBits,
-      });
+        const RpseudoMoves = rookPseudoMoves({ fromBitIndex });
+        const RlegalMoves = rookLegalMoves({
+          fromBitIndex,
+          occupiedSquares: occupiedBits,
+          teammateOccupiedBits: whiteOccupiedBits,
+          rookMoveMask: RpseudoMoves,
+        });
+        return diagonalLegalMoves.or(RlegalMoves);
+      }
+      case 9: {
+        const pseudoMoves = bishopPseudoMoves({ fromBitIndex });
+        const diagonalLegalMoves = bishopLegalMoves({
+          possibleMoves: pseudoMoves,
+          bishopPosition: currentPiecePosition,
+          occupiedBits,
+          fromBitIndex,
+          teammateOccupiedBits: blackOccupiedBits,
+        });
 
-      const RpseudoMoves = rookPseudoMoves({ fromBitIndex });
-      const RlegalMoves = rookLegalMoves({
-        fromBitIndex,
-        occupiedSquares: occupiedBits,
-        teammateOccupiedBits: blackOccupiedBits,
-        rookMoveMask: RpseudoMoves,
-      });
-      return diagonalLegalMoves.or(RlegalMoves);
-    }
-    case 10: {
-      const pseudoMoves = kingPseudoMoves({
-        kingPosition: currentPiecePosition,
-      });
-      // TODO add here also defended squares filter
-      return pseudoMoves.and(whiteOccupiedBits.not());
-    }
-    case 11: {
-      const pseudoMoves = kingPseudoMoves({
-        kingPosition: currentPiecePosition,
-      });
-      // TODO add here also defended squares filter
-      return pseudoMoves.and(blackOccupiedBits.not());
-    }
-    default:
-      return new Long(0, 0, true);
+        const RpseudoMoves = rookPseudoMoves({ fromBitIndex });
+        const RlegalMoves = rookLegalMoves({
+          fromBitIndex,
+          occupiedSquares: occupiedBits,
+          teammateOccupiedBits: blackOccupiedBits,
+          rookMoveMask: RpseudoMoves,
+        });
+        return diagonalLegalMoves.or(RlegalMoves);
+      }
+      case 10: {
+        const pseudoMoves = kingPseudoMoves({
+          kingPosition: currentPiecePosition,
+        });
+        // TODO add here also defended squares filter
+        return pseudoMoves.and(whiteOccupiedBits.not());
+      }
+      case 11: {
+        const pseudoMoves = kingPseudoMoves({
+          kingPosition: currentPiecePosition,
+        });
+        // TODO add here also defended squares filter
+        return pseudoMoves.and(blackOccupiedBits.not());
+      }
+      default:
+        return new Long(0, 0, true);
     }
   };
   const updateGameState = ({ piece, color, from, to }: Move) => {
@@ -218,19 +221,31 @@ const useChess = () => {
     moveBoard = moveBoard.and(fromMask.not());
     moveBoard = moveBoard.or(toMask);
     //remove captured pieces
-    const deletedPieces = removeCapturedPiece(toBitIndex, color);
-
+    const elPassantCapture = checkIfElpassant(toBitIndex, piece);
+    const deletedPieces = elPassantCapture
+      ? removeCapturedPiece(elPassantCapture.square, color)
+      : removeCapturedPiece(toBitIndex, color);
     //promote pawn
     //set check or mate
     //set/remove elpassant
+    if (
+      (piece === 1 || piece === 0) &&
+      (fromBitIndex - toBitIndex) % 16 === 0
+    ) {
+      const elPassantSquare =
+        color === 'w' ? fromBitIndex + 8 : fromBitIndex - 8;
+      setElPassant(elPassantSquare);
+    } else {
+      setElPassant(null);
+    }
 
+    //final state changes
     let modifiedGameState = gameState;
     if (deletedPieces) {
       modifiedGameState[deletedPieces.i] = deletedPieces.pieces;
     }
     modifiedGameState[piece] = moveBoard;
 
-    //final state changes
     setGameState(modifiedGameState);
     //set if pawn moved or piece captured to 0 otherwise increment
     if (piece === 1 || piece === 0 || deletedPieces) {
@@ -244,15 +259,34 @@ const useChess = () => {
     }
     setTurn((r) => (r === 'b' ? 'w' : 'b'));
   };
+  const checkIfElpassant = (toBitIndex: number, piece: bitPieces) => {
+    // check if moved piece is pawn and its moved to elpassant square
+    if (toBitIndex === elPassant && (piece === 0 || piece === 1)) {
+      const rank = ~~(toBitIndex / 8);
+      if (rank === 2) {
+        return {
+          square: toBitIndex + 8,
+        };
+      } else if (rank === 5) {
+        return {
+          square: toBitIndex - 8,
+        };
+      }
+    }
+  };
   const removeCapturedPiece = (fromBitIndex: number, color: Color) => {
     // white pieces is even and black odd in gamestate Array so we need to set this even for black odd
     const forHelper = color === 'w' ? 1 : 0;
     const capturedPiece = Long.UONE.shiftLeft(fromBitIndex);
     logger(capturedPiece);
+    //logger(capturedPiece);
     for (let i = forHelper; i < gameState.length; i += 2) {
       let pieces = gameState[i] as Long;
+      logger(pieces);
+      logger(capturedPiece.and(pieces));
       if (!capturedPiece.and(pieces).isZero()) {
         pieces = pieces.and(capturedPiece.not());
+        logger(pieces);
         return { i, pieces };
       }
     }
@@ -286,7 +320,7 @@ const useChess = () => {
     const fstate = splittedFen[0] as string;
     const fturn = splittedFen[1] as 'w' | 'b';
     const fcastling = splittedFen[2] as string;
-    const fElPassant = splittedFen[3] as string;
+    const fElPassant = splittedFen[3] as keyof typeof SquareBit;
     const fhalfMoves = splittedFen[4] as string;
     const ffullMoves = splittedFen[5] as string;
 
@@ -315,54 +349,54 @@ const useChess = () => {
       const { piece, bitIndex } = prop;
       const bitOperator = new Long(1, 0x0, true).shiftLeft(bitIndex);
       switch (piece) {
-      case 'P':
-        //0
-        newGame[0] = newGame[0].or(bitOperator);
-        break;
-      case 'p':
-        //1
-        newGame[1] = newGame[1].or(bitOperator);
-        break;
-      case 'R':
-        //2
-        newGame[2] = newGame[2].or(bitOperator);
-        break;
-      case 'r':
-        //3
-        newGame[3] = newGame[3].or(bitOperator);
-        break;
-      case 'B':
-        //4
-        newGame[4] = newGame[4].or(bitOperator);
-        break;
-      case 'b':
-        //5
-        newGame[5] = newGame[5].or(bitOperator);
-        break;
-      case 'N':
-        //6
-        newGame[6] = newGame[6].or(bitOperator);
-        break;
-      case 'n':
-        //7
-        newGame[7] = newGame[7].or(bitOperator);
-        break;
-      case 'Q':
-        //8
-        newGame[8] = newGame[8].or(bitOperator);
-        break;
-      case 'q':
-        //9
-        newGame[9] = newGame[9].or(bitOperator);
-        break;
-      case 'K':
-        //10
-        newGame[10] = newGame[10].or(bitOperator);
-        break;
-      case 'k':
-        //11
-        newGame[11] = newGame[11].or(bitOperator);
-        break;
+        case 'P':
+          //0
+          newGame[0] = newGame[0].or(bitOperator);
+          break;
+        case 'p':
+          //1
+          newGame[1] = newGame[1].or(bitOperator);
+          break;
+        case 'R':
+          //2
+          newGame[2] = newGame[2].or(bitOperator);
+          break;
+        case 'r':
+          //3
+          newGame[3] = newGame[3].or(bitOperator);
+          break;
+        case 'B':
+          //4
+          newGame[4] = newGame[4].or(bitOperator);
+          break;
+        case 'b':
+          //5
+          newGame[5] = newGame[5].or(bitOperator);
+          break;
+        case 'N':
+          //6
+          newGame[6] = newGame[6].or(bitOperator);
+          break;
+        case 'n':
+          //7
+          newGame[7] = newGame[7].or(bitOperator);
+          break;
+        case 'Q':
+          //8
+          newGame[8] = newGame[8].or(bitOperator);
+          break;
+        case 'q':
+          //9
+          newGame[9] = newGame[9].or(bitOperator);
+          break;
+        case 'K':
+          //10
+          newGame[10] = newGame[10].or(bitOperator);
+          break;
+        case 'k':
+          //11
+          newGame[11] = newGame[11].or(bitOperator);
+          break;
       }
     };
     let i = 63;
@@ -379,11 +413,11 @@ const useChess = () => {
       }
       i--;
     }
-    setTurn(turn);
+    setTurn(fturn);
     setGameState(newGame);
     setHalfMove(Number(fhalfMoves));
     setFullMove(Number(ffullMoves));
-    setElPassant(fElPassant);
+    setElPassant(SquareBit[fElPassant]);
     setCastling(fcastling);
 
     return newGame;
@@ -436,7 +470,9 @@ const useChess = () => {
       Fen = Fen.concat('/');
     }
     return Fen.concat(
-      ` ${turn} ${castling} ${elPassant} ${halfMove} ${fullMove}`
+      ` ${turn} ${castling} ${
+        elPassant === null ? '-' : Object.values(SquareBit)[elPassant]
+      } ${halfMove} ${fullMove}`
     );
   };
 
@@ -460,13 +496,13 @@ const getBitIndexes = (bitString: Long) => {
   for (let i = bit.length - bitString.countTrailingZeros(); i >= 0; i--) {
     const hexAtI = bit.charAt(i);
     switch (hexAtI) {
-    case '1': {
-      algebricNotation = [
-        ...algebricNotation,
-        SquareBit[bit.length - i - 1] as string,
-      ];
-      break;
-    }
+      case '1': {
+        algebricNotation = [
+          ...algebricNotation,
+          SquareBit[bit.length - i - 1] as string,
+        ];
+        break;
+      }
     }
   }
 
