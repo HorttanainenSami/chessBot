@@ -1,11 +1,7 @@
 import {
   knightPseudoMoves,
-  bishopPseudoMoves,
   kingPseudoMoves,
   bishopLegalMoves,
-  checkForADiagonalBlockingPieces,
-  checkForDiagonalBlockingPieces,
-  rookPseudoMoves,
   rookLegalMoves,
   pawnPseudoMoves,
   pawnLegalMoves,
@@ -18,69 +14,34 @@ describe('knightPseudoMoves', () => {
   const mask = Long.UONE;
   it('should return the correct pseudo moves for a knight', () => {
     const fromBitIndex = 0;
-    const knightPosition = mask.shiftLeft(fromBitIndex);
     const expectedPseudoMoves = new Long(0x20401, 0, true);
-    expect(knightPseudoMoves({ knightPosition })).toEqual(expectedPseudoMoves);
+    expect(knightPseudoMoves({ fromBitIndex })).toEqual(expectedPseudoMoves);
   });
 
   it('should return the correct pseudo moves for a knight on the A file', () => {
     const fromBitIndex = 7;
-    const knightPosition = mask.shiftLeft(fromBitIndex);
     const expectedPseudoMoves = new Long(0x402080, 0, true);
-    expect(knightPseudoMoves({ knightPosition }).toString(2)).toEqual(
+    expect(knightPseudoMoves({ fromBitIndex }).toString(2)).toEqual(
       expectedPseudoMoves.toString(2)
     );
   });
 
   it('should return the correct pseudo moves for a knight on the up-left corner', () => {
     const fromBitIndex = 56;
-    const knightPosition = mask.shiftLeft(fromBitIndex);
     const expectedPseudoMoves = new Long(0, 0x1040200, true);
-    expect(knightPseudoMoves({ knightPosition }).toString(2)).toEqual(
+    expect(knightPseudoMoves({ fromBitIndex }).toString(2)).toEqual(
       expectedPseudoMoves.toString(2)
     );
   });
   it('should return the correct pseudo moves for a knight on the middle of board', () => {
     const fromBitIndex = 27;
-    const knightPosition = mask.shiftLeft(fromBitIndex);
     const expectedPseudoMoves = new Long(0x8221400, 0x1422, true);
-    expect(knightPseudoMoves({ knightPosition }).toString(2)).toEqual(
+    expect(knightPseudoMoves({ fromBitIndex }).toString(2)).toEqual(
       expectedPseudoMoves.toString(2)
     );
   });
 });
 //**********************************BISHOP*****************************************
-
-describe('bishopPseudoMoves', () => {
-  it('should return the correct pseudo moves for a bishop at index 0', () => {
-    const fromBitIndex = 0;
-    const expectedPseudoMoves = new Long(0x8040201, 0x80402010, true);
-    expect(bishopPseudoMoves({ fromBitIndex })).toEqual(expectedPseudoMoves);
-  });
-
-  it('should return the correct pseudo moves for a bishop at index 7', () => {
-    const fromBitIndex = 7;
-    const expectedPseudoMoves = new Long(0x10204080, 0x1020408, true);
-    expect(bishopPseudoMoves({ fromBitIndex }).toString(2)).toEqual(
-      expectedPseudoMoves.toString(2)
-    );
-  });
-
-  it('should return the correct pseudo moves for a bishop at index 56', () => {
-    const fromBitIndex = 56;
-    const expectedPseudoMoves = new Long(0x10204080, 0x1020408, true);
-    expect(bishopPseudoMoves({ fromBitIndex }).toString(2)).toEqual(
-      expectedPseudoMoves.toString(2)
-    );
-  });
-  it('should return the correct pseudo moves for a bishop at index 27', () => {
-    const fromBitIndex = 27;
-    const expectedPseudoMoves = new Long(0x8142241, 0x80412214, true);
-    expect(bishopPseudoMoves({ fromBitIndex }).toString(2)).toEqual(
-      expectedPseudoMoves.toString(2)
-    );
-  });
-});
 
 describe('bishopLegalMoves', () => {
   it('should return all possible moves for bishop on D4 when board is empty', () => {
@@ -89,15 +50,12 @@ describe('bishopLegalMoves', () => {
     const occupiedBits = Long.fromString('0x10000000', true, 16);
     const teammateOccupiedBits = Long.fromString('0x10000000', true, 16);
     const expectedMoves = Long.fromString('0x182442800284482', true, 16);
-    const possibleMoves = bishopPseudoMoves({ fromBitIndex });
     const params = {
-      possibleMoves,
       bishopPosition,
       occupiedBits,
       fromBitIndex,
       teammateOccupiedBits,
     };
-
     expect(bishopLegalMoves(params)).toEqual(expectedMoves);
   });
 
@@ -107,9 +65,7 @@ describe('bishopLegalMoves', () => {
     const occupiedBits = Long.fromString('0xffff0000100000ff', true, 16);
     const teammateOccupiedBits = Long.fromString('0x100000ff', true, 16);
     const expectedMoves = Long.fromString('0x82442800284400', true, 16);
-    const possibleMoves = bishopPseudoMoves({ fromBitIndex });
     const params = {
-      possibleMoves,
       bishopPosition,
       occupiedBits,
       fromBitIndex,
@@ -128,9 +84,7 @@ describe('bishopLegalMoves', () => {
       16
     );
     const expectedMoves = Long.fromString('0x40201008000000', true, 16);
-    const possibleMoves = bishopPseudoMoves({ fromBitIndex });
     const params = {
-      possibleMoves,
       bishopPosition,
       occupiedBits,
       fromBitIndex,
@@ -146,9 +100,7 @@ describe('bishopLegalMoves', () => {
     const occupiedBits = Long.fromString('0x80402010ff0002', true, 16);
     const teammateOccupiedBits = Long.fromString('0x80000010ff0002', true, 16);
     const expectedMoves = Long.fromString('0x102042800000000', true, 16);
-    const possibleMoves = bishopPseudoMoves({ fromBitIndex });
     const params = {
-      possibleMoves,
       bishopPosition,
       occupiedBits,
       fromBitIndex,
@@ -158,126 +110,35 @@ describe('bishopLegalMoves', () => {
   });
 });
 
-describe('checkForDiagonalBlockingPieces', () => {
-  test('all pieces blocked', () => {
-    const possibleMoves = Long.fromString('0x8040201008040201', true, 16);
-    const occupiedSquares = Long.fromString('0x8040201008040201', true, 16);
-    const blockedMoves = checkForDiagonalBlockingPieces({
-      possibleMoves,
-      occupiedSquares,
-    });
-    expect(blockedMoves).toEqual(occupiedSquares);
-  });
-
-  test('no pieces blocked', () => {
-    const possibleMoves = Long.fromString('0x8040201008040201', true, 16);
-    const occupiedSquares = Long.fromString('0x0', true, 16);
-    const blockedMoves = checkForDiagonalBlockingPieces({
-      possibleMoves,
-      occupiedSquares,
-    });
-    expect(blockedMoves.toString(2)).toEqual(occupiedSquares.toString(2));
-  });
-
-  test('some pieces blocked', () => {
-    const possibleMoves = Long.fromString('0x8040201008000000', true, 16);
-    const occupiedSquares = Long.fromString('0x8000200000000000', true, 16);
-
-    const blockedMoves = checkForDiagonalBlockingPieces({
-      possibleMoves,
-      occupiedSquares,
-    });
-    expect(blockedMoves.toString(2)).toEqual(possibleMoves.toString(2));
-  });
-});
-
-describe('checkForADiagonalBlockingPieces', () => {
-  test('all pieces blocked', () => {
-    const possibleMoves = Long.fromString('0x102040810204080', true, 16);
-    const occupiedSquares = Long.fromString('0x102040810204080', true, 16);
-    const blockedMoves = checkForADiagonalBlockingPieces({
-      possibleMoves,
-      occupiedSquares,
-    });
-    expect(blockedMoves).toEqual(occupiedSquares);
-  });
-
-  test('no pieces blocked', () => {
-    const possibleMoves = Long.fromString('0x102040810204080', true, 16);
-    const occupiedSquares = Long.fromString('0x0', true, 16);
-    const blockedMoves = checkForADiagonalBlockingPieces({
-      possibleMoves,
-      occupiedSquares,
-    });
-    expect(blockedMoves.toString(2)).toEqual(occupiedSquares.toString(2));
-  });
-
-  test('some pieces blocked', () => {
-    const possibleMoves = Long.fromString('0x102040810000000', true, 16);
-    const occupiedSquares = Long.fromString('0x100040000000000', true, 16);
-
-    const blockedMoves = checkForADiagonalBlockingPieces({
-      possibleMoves,
-      occupiedSquares,
-    });
-    expect(blockedMoves.toString(2)).toEqual(possibleMoves.toString(2));
-  });
-});
-
 //**********************************KING*****************************************
 
 describe('kingPseudoMoves', () => {
   it('should return all possible moves for king on D4', () => {
-    const kingPosition = Long.fromString('0x10000000', true, 16);
+    const fromBitIndex = 28;
     const expectedMoves = Long.fromString('0x3828380000', true, 16);
-    expect(kingPseudoMoves({ kingPosition })).toEqual(expectedMoves);
+    expect(kingPseudoMoves({ fromBitIndex })).toEqual(expectedMoves);
   });
 
   it('should return all possible moves for king on A8', () => {
-    const kingPosition = Long.fromString('0x8000000000000000', true, 16);
+    const fromBitIndex = 63;
     const expectedMoves = Long.fromString('0x40c0000000000000', true, 16);
-    expect(kingPseudoMoves({ kingPosition })).toEqual(expectedMoves);
+    expect(kingPseudoMoves({ fromBitIndex })).toEqual(expectedMoves);
   });
 
   it('should return all possible moves for king on H8', () => {
-    const kingPosition = Long.fromString('0x0100000000000000', true, 16);
+    const fromBitIndex = 56;
     const expectedMoves = Long.fromString('0x203000000000000', true, 16);
-    expect(kingPseudoMoves({ kingPosition })).toEqual(expectedMoves);
-  });
-  it('should return all possible moves for king on H8', () => {
-    const kingPosition = Long.fromString('0x0100000000000000', true, 16);
-    const expectedMoves = Long.fromString('0x203000000000000', true, 16);
-    expect(kingPseudoMoves({ kingPosition })).toEqual(expectedMoves);
+    expect(kingPseudoMoves({ fromBitIndex })).toEqual(expectedMoves);
   });
 });
 
 //**********************************ROOK*****************************************
 
-describe('RookPseudoMoves', () => {
-  it('should return all possible moves for rook on D4', () => {
-    const fromBitIndex = 28;
-    const expectedMoves = Long.fromString('0x10101010ff101010', true, 16);
-    expect(rookPseudoMoves({ fromBitIndex })).toEqual(expectedMoves);
-  });
-
-  it('should return all possible moves for rook on A8', () => {
-    const fromBitIndex = 63;
-    const expectedMoves = Long.fromString('0xff80808080808080', true, 16);
-    expect(rookPseudoMoves({ fromBitIndex })).toEqual(expectedMoves);
-  });
-
-  it('should return all possible moves for rook on H8', () => {
-    const fromBitIndex = 56;
-    const expectedMoves = Long.fromString('0xff01010101010101', true, 16);
-    expect(rookPseudoMoves({ fromBitIndex })).toEqual(expectedMoves);
-  });
-});
-
 describe('RookLegalMoves', () => {
   it('should return all possible moves for rook on D4, empty', () => {
     const fromBitIndex = 28;
-    const rookMoveMask = Long.fromString('0x10101010ff101010', true, 16);
-    const occupiedSquares = Long.fromString('0x0', true, 16);
+    const pseudoMoves = Long.fromString('0x10101010ff101010', true, 16);
+    const occupiedBits = Long.fromString('0x0', true, 16);
     const expectedMoves = Long.fromString('0x0', true, 16);
     const teammateOccupiedBits = Long.fromString(
       '0x10101010ff101010',
@@ -285,8 +146,8 @@ describe('RookLegalMoves', () => {
       16
     );
     const params = {
-      rookMoveMask,
-      occupiedSquares,
+      pseudoMoves,
+      occupiedBits,
       teammateOccupiedBits,
       fromBitIndex,
     };
@@ -295,8 +156,8 @@ describe('RookLegalMoves', () => {
   });
   it('should return all possible moves for rook on D4, full of teammates', () => {
     const fromBitIndex = 28;
-    const rookMoveMask = Long.fromString('0x10101010ff101010', true, 16);
-    const occupiedSquares = Long.fromString('0xffffffffffffffff', true, 16);
+    const pseudoMoves = Long.fromString('0x10101010ff101010', true, 16);
+    const occupiedBits = Long.fromString('0xffffffffffffffff', true, 16);
     const expectedMoves = Long.fromString('0x0', true, 16);
     const teammateOccupiedBits = Long.fromString(
       '0x10101010ff101010',
@@ -304,8 +165,8 @@ describe('RookLegalMoves', () => {
       16
     );
     const params = {
-      rookMoveMask,
-      occupiedSquares,
+      pseudoMoves,
+      occupiedBits,
       teammateOccupiedBits,
       fromBitIndex,
     };
@@ -317,13 +178,13 @@ describe('RookLegalMoves', () => {
 
   it('should return all possible moves for rook on D4, full of enemies', () => {
     const fromBitIndex = 28;
-    const rookMoveMask = Long.fromString('0x10101010ff101010', true, 16);
-    const occupiedSquares = Long.fromString('0xffffffffffffffff', true, 16);
+    const pseudoMoves = Long.fromString('0x10101010ff101010', true, 16);
+    const occupiedBits = Long.fromString('0xffffffffffffffff', true, 16);
     const expectedMoves = Long.fromString('0x1028100000', true, 16);
     const teammateOccupiedBits = Long.fromString('0x10000000', true, 16);
     const params = {
-      rookMoveMask,
-      occupiedSquares,
+      pseudoMoves,
+      occupiedBits,
       teammateOccupiedBits,
       fromBitIndex,
     };
@@ -334,8 +195,8 @@ describe('RookLegalMoves', () => {
   });
   it('should return all possible moves for rook on D4, some filled', () => {
     const fromBitIndex = 28;
-    const rookMoveMask = Long.fromString('0x10101010ff101010', true, 16);
-    const occupiedSquares = Long.fromString('0x10101000c3101010', true, 16);
+    const pseudoMoves = Long.fromString('0x10101010ff101010', true, 16);
+    const occupiedBits = Long.fromString('0x10101000c3101010', true, 16);
     const expectedMoves = Long.fromString('0x106e000000', true, 16);
     const teammateOccupiedBits = Long.fromString(
       '0x1000100081100010',
@@ -343,8 +204,8 @@ describe('RookLegalMoves', () => {
       16
     );
     const params = {
-      rookMoveMask,
-      occupiedSquares,
+      pseudoMoves,
+      occupiedBits,
       teammateOccupiedBits,
       fromBitIndex,
     };

@@ -5,13 +5,12 @@ import { Square, Move, Color } from '../Types';
 import {
   pawnLegalMoves,
   rookLegalMoves,
-  rookPseudoMoves,
   bishopLegalMoves,
-  bishopPseudoMoves,
   kingPseudoMoves,
   knightPseudoMoves,
 } from './moveMasks';
 import { Piece } from 'chess.ts';
+import { ImportsNotUsedAsValues } from 'typescript';
 /*
 pieces represented in 64 bit, 1 = piece, 0 = not piece 
 */
@@ -65,22 +64,29 @@ const useChess = () => {
     return algebricNotation;
   };
   //TODO to check discovered check and prevent movement if it occurs
-  const move = ({ square, piece, color }: IMoves): Long => {
-    const fromBitIndex = SquareBit[square];
-    const oneBit = new Long(1, 0, true);
-    const currentPiecePosition = oneBit.shiftLeft(fromBitIndex);
-    const occupiedBits = gameState.reduce(
-      (acc, curr) => acc.or(curr),
-      new Long(0x0, 0x0, true)
-    );
-    const blackOccupiedBits = gameState.reduce((acc, curr, i) => {
+  interface Imove extends IMoves {
+    blackOccupiedBits?: Long;
+    whiteOccupiedBits?: Long;
+    occupiedBits?: Long;
+    fromBitIndex?: number;
+  }
+  const move = ({
+    square,
+    piece,
+    color,
+    fromBitIndex = SquareBit[square],
+    blackOccupiedBits = gameState.reduce((acc, curr, i) => {
       if (i % 2 === 0) return acc;
       return acc.or(curr);
-    }, new Long(0, 0, true));
-    const whiteOccupiedBits = occupiedBits.xor(blackOccupiedBits);
+    }, new Long(0, 0, true)),
+    occupiedBits = gameState.reduce(
+      (acc, curr) => acc.or(curr),
+      new Long(0x0, 0x0, true)
+    ),
+    whiteOccupiedBits = occupiedBits.xor(blackOccupiedBits),
+  }: Imove): Long => {
     switch (piece) {
       case 0: {
-        //elpassant
         const legalMoves = pawnLegalMoves({
           fromBitIndex,
           color,
@@ -91,7 +97,6 @@ const useChess = () => {
         return legalMoves;
       }
       case 1: {
-        //elpassant
         const legalMoves = pawnLegalMoves({
           fromBitIndex,
           color,
@@ -102,108 +107,79 @@ const useChess = () => {
         return legalMoves;
       }
       case 2: {
-        const pseudoMoves = rookPseudoMoves({ fromBitIndex });
         const legalMoves = rookLegalMoves({
           fromBitIndex,
-          occupiedSquares: occupiedBits,
+          occupiedBits,
           teammateOccupiedBits: whiteOccupiedBits,
-          rookMoveMask: pseudoMoves,
         });
         return legalMoves;
       }
       case 3: {
-        const pseudoMoves = rookPseudoMoves({ fromBitIndex });
         const legalMoves = rookLegalMoves({
           fromBitIndex,
-          occupiedSquares: occupiedBits,
+          occupiedBits,
           teammateOccupiedBits: blackOccupiedBits,
-          rookMoveMask: pseudoMoves,
         });
         return legalMoves;
       }
       case 4: {
-        const pseudoMoves = bishopPseudoMoves({ fromBitIndex });
         return bishopLegalMoves({
-          possibleMoves: pseudoMoves,
-          bishopPosition: currentPiecePosition,
           occupiedBits,
           fromBitIndex,
           teammateOccupiedBits: whiteOccupiedBits,
         });
       }
       case 5: {
-        const pseudoMoves = bishopPseudoMoves({ fromBitIndex });
         return bishopLegalMoves({
-          possibleMoves: pseudoMoves,
-          bishopPosition: currentPiecePosition,
           occupiedBits,
           fromBitIndex,
           teammateOccupiedBits: blackOccupiedBits,
         });
       }
       case 6: {
-        const pseudoMoves = knightPseudoMoves({
-          knightPosition: currentPiecePosition,
-        });
+        const pseudoMoves = knightPseudoMoves({ fromBitIndex });
         const legalMoves = pseudoMoves.and(whiteOccupiedBits.not());
         return legalMoves;
       }
       case 7: {
-        const pseudoMoves = knightPseudoMoves({
-          knightPosition: currentPiecePosition,
-        });
+        const pseudoMoves = knightPseudoMoves({ fromBitIndex });
         const legalMoves = pseudoMoves.and(blackOccupiedBits.not());
         return legalMoves;
       }
       case 8: {
-        const pseudoMoves = bishopPseudoMoves({ fromBitIndex });
         const diagonalLegalMoves = bishopLegalMoves({
-          possibleMoves: pseudoMoves,
-          bishopPosition: currentPiecePosition,
           occupiedBits,
           fromBitIndex,
           teammateOccupiedBits: whiteOccupiedBits,
         });
-
-        const RpseudoMoves = rookPseudoMoves({ fromBitIndex });
         const RlegalMoves = rookLegalMoves({
           fromBitIndex,
-          occupiedSquares: occupiedBits,
+          occupiedBits,
           teammateOccupiedBits: whiteOccupiedBits,
-          rookMoveMask: RpseudoMoves,
         });
         return diagonalLegalMoves.or(RlegalMoves);
       }
       case 9: {
-        const pseudoMoves = bishopPseudoMoves({ fromBitIndex });
         const diagonalLegalMoves = bishopLegalMoves({
-          possibleMoves: pseudoMoves,
-          bishopPosition: currentPiecePosition,
           occupiedBits,
           fromBitIndex,
           teammateOccupiedBits: blackOccupiedBits,
         });
 
-        const RpseudoMoves = rookPseudoMoves({ fromBitIndex });
         const RlegalMoves = rookLegalMoves({
           fromBitIndex,
-          occupiedSquares: occupiedBits,
+          occupiedBits,
           teammateOccupiedBits: blackOccupiedBits,
-          rookMoveMask: RpseudoMoves,
         });
         return diagonalLegalMoves.or(RlegalMoves);
       }
       case 10: {
-        const pseudoMoves = kingPseudoMoves({
-          kingPosition: currentPiecePosition,
-        });
+        const pseudoMoves = kingPseudoMoves({ fromBitIndex });
         // TODO add here also defended squares filter
         return pseudoMoves.and(whiteOccupiedBits.not());
       }
       case 11: {
-        const pseudoMoves = kingPseudoMoves({
-          kingPosition: currentPiecePosition,
-        });
+        const pseudoMoves = kingPseudoMoves({ fromBitIndex });
         // TODO add here also defended squares filter
         return pseudoMoves.and(blackOccupiedBits.not());
       }
