@@ -242,7 +242,7 @@ export const pawnLegalAttacks = ({
 };
 function checkForBlockers({ from, to, occupied }: ImayMove) {
   if (from < 0 || to < 0 || to === 64) return Long.UZERO;
-  const between = inBetween({ from, to });
+  const between = inBetween(from, to );
   if (between === null) return Long.UZERO;
   return between.and(occupied);
 }

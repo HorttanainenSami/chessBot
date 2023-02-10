@@ -145,15 +145,20 @@ interface IinBetween {
   from: number;
   to: number;
 }
-export function inBetween({ from, to }: { from: number; to: number }) {
+export function inBetween(from: number, to: number ) {
   const fromArr = arrRectangular[from] as Array<Long | null>;
   return fromArr[to] as Long | null;
 }
 export interface ImayMove extends IinBetween {
   occupied: Long;
 }
+export function obstructed(from:number, to: number, occupied: Long) {
+  const between = inBetween(from, to);
+  if (between === null) return Long.UZERO;
+  return between.xor(Long.UONE.shiftLeft(from)).and(occupied);
+}
 export function mayMove({ from, to, occupied }: ImayMove) {
-  const between = inBetween({ from, to });
+  const between = inBetween(from, to);
   if (between === null) return false;
   return between.and(occupied).isZero();
 }

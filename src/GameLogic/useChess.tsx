@@ -2,38 +2,9 @@ import React, { useState } from 'react';
 import Long from 'long';
 import { bitPieces, SquareBit, logger, isNumeric, checkBitAt } from './helpers';
 import { Square, Move, Color } from '../Types';
-import {
-  pawnLegalMoves,
-  rookLegalMoves,
-  bishopLegalMoves,
-  kingPseudoMoves,
-  knightPseudoMoves,
-} from './moveMasks';
-import { Piece } from 'chess.ts';
-import { ImportsNotUsedAsValues } from 'typescript';
-/*
-pieces represented in 64 bit, 1 = piece, 0 = not piece 
-*/
-const startState: Long[] = [
-  //pawns
-  new Long(0x0000f000, 0x00000000, true), //w
-  new Long(0x0, 0x00ff0000, true), //b
-  //rooks
-  new Long(0x81, 0x0, true), //w
-  new Long(0x0, 0x81000000, true), //b and so on...
-  //bishops
-  new Long(0x24, 0x0, true),
-  new Long(0x0, 0x24000000, true),
-  //knights
-  new Long(0x42, 0x0, true),
-  new Long(0x0, 0x42000000, true),
-  //queens
-  new Long(0x10, 0x0, true),
-  new Long(0x0, 0x10000000, true),
-  //kings
-  new Long(0x8, 0x0, true),
-  new Long(0x0, 0x8000000, true),
-];
+
+import useMove from './useMove';
+
 export interface IMoves {
   square: Square;
   piece: bitPieces;
@@ -41,11 +12,23 @@ export interface IMoves {
 }
 const useChess = () => {
   // save gamestate as bitboard
-  const [gameState, setGameState] = useState<Long[]>(startState);
+  const {
+    gameState,
+    changeGameState,
+    pawnLegalMoves,
+    rookLegalMoves,
+    bishopLegalMoves,
+    checkingRays,
+    knightPseudoMoves,
+    kingLegalMoves,
+    checked,
+    elPassant,
+    setElPassant,
+    mate,
+  } = useMove();
   const [turn, setTurn] = useState<'w' | 'b'>('w');
   //checks if castling is possible '' means not possible
   const [castling, setCastling] = useState('KQkq');
-  const [elPassant, setElPassant] = useState<SquareBit | null>(null);
   // can be used to set tie if reaches to 50
   const [halfMove, setHalfMove] = useState(0);
   const [fullMove, setFullMove] = useState(1);
@@ -85,6 +68,7 @@ const useChess = () => {
     ),
     whiteOccupiedBits = occupiedBits.xor(blackOccupiedBits),
   }: Imove): Long => {
+    if(mate) return Long.UZERO;
     switch (piece) {
       case 0: {
         const legalMoves = pawnLegalMoves({
@@ -92,7 +76,6 @@ const useChess = () => {
           color,
           enemyOccupied: blackOccupiedBits,
           occupiedSquares: occupiedBits,
-          elPassant,
         });
         return legalMoves;
       }
@@ -102,7 +85,6 @@ const useChess = () => {
           color,
           enemyOccupied: whiteOccupiedBits,
           occupiedSquares: occupiedBits,
-          elPassant,
         });
         return legalMoves;
       }
@@ -111,6 +93,7 @@ const useChess = () => {
           fromBitIndex,
           occupiedBits,
           teammateOccupiedBits: whiteOccupiedBits,
+          color,
         });
         return legalMoves;
       }
@@ -119,6 +102,7 @@ const useChess = () => {
           fromBitIndex,
           occupiedBits,
           teammateOccupiedBits: blackOccupiedBits,
+          color,
         });
         return legalMoves;
       }
@@ -127,6 +111,7 @@ const useChess = () => {
           occupiedBits,
           fromBitIndex,
           teammateOccupiedBits: whiteOccupiedBits,
+          color,
         });
       }
       case 5: {
@@ -134,6 +119,7 @@ const useChess = () => {
           occupiedBits,
           fromBitIndex,
           teammateOccupiedBits: blackOccupiedBits,
+          color,
         });
       }
       case 6: {
@@ -151,11 +137,13 @@ const useChess = () => {
           occupiedBits,
           fromBitIndex,
           teammateOccupiedBits: whiteOccupiedBits,
+          color,
         });
         const RlegalMoves = rookLegalMoves({
           fromBitIndex,
           occupiedBits,
           teammateOccupiedBits: whiteOccupiedBits,
+          color
         });
         return diagonalLegalMoves.or(RlegalMoves);
       }
@@ -164,24 +152,26 @@ const useChess = () => {
           occupiedBits,
           fromBitIndex,
           teammateOccupiedBits: blackOccupiedBits,
+          color,
         });
 
         const RlegalMoves = rookLegalMoves({
           fromBitIndex,
           occupiedBits,
           teammateOccupiedBits: blackOccupiedBits,
+          color,
         });
         return diagonalLegalMoves.or(RlegalMoves);
       }
       case 10: {
-        const pseudoMoves = kingPseudoMoves({ fromBitIndex });
+        const legalMoves = kingLegalMoves({fromBitIndex, occupiedBits, enemyOccupied:blackOccupiedBits});
         // TODO add here also defended squares filter
-        return pseudoMoves.and(whiteOccupiedBits.not());
+        return legalMoves;
       }
       case 11: {
-        const pseudoMoves = kingPseudoMoves({ fromBitIndex });
+        const legalMoves = kingLegalMoves({fromBitIndex, occupiedBits, enemyOccupied:whiteOccupiedBits});
         // TODO add here also defended squares filter
-        return pseudoMoves.and(blackOccupiedBits.not());
+        return legalMoves;
       }
       default:
         return new Long(0, 0, true);
@@ -217,12 +207,13 @@ const useChess = () => {
 
     //final state changes
     let modifiedGameState = gameState;
+    const newTurn = turn === 'b'? 'w':'b';
     if (deletedPieces) {
       modifiedGameState[deletedPieces.i] = deletedPieces.pieces;
     }
     modifiedGameState[piece] = moveBoard;
 
-    setGameState(modifiedGameState);
+    changeGameState(modifiedGameState, newTurn );
     //set if pawn moved or piece captured to 0 otherwise increment
     if (piece === 1 || piece === 0 || deletedPieces) {
       setHalfMove(0);
@@ -233,7 +224,7 @@ const useChess = () => {
     if (turn === 'b') {
       setFullMove((r) => (r += 1));
     }
-    setTurn((r) => (r === 'b' ? 'w' : 'b'));
+    setTurn(newTurn);
   };
   const checkIfElpassant = (toBitIndex: number, piece: bitPieces) => {
     // check if moved piece is pawn and its moved to elpassant square
@@ -254,15 +245,15 @@ const useChess = () => {
     // white pieces is even and black odd in gamestate Array so we need to set this even for black odd
     const forHelper = color === 'w' ? 1 : 0;
     const capturedPiece = Long.UONE.shiftLeft(fromBitIndex);
-    logger(capturedPiece);
+    //logger(capturedPiece);
     //logger(capturedPiece);
     for (let i = forHelper; i < gameState.length; i += 2) {
       let pieces = gameState[i] as Long;
-      logger(pieces);
-      logger(capturedPiece.and(pieces));
+      //logger(pieces);
+      //logger(capturedPiece.and(pieces));
       if (!capturedPiece.and(pieces).isZero()) {
         pieces = pieces.and(capturedPiece.not());
-        logger(pieces);
+        //logger(pieces);
         return { i, pieces };
       }
     }
@@ -390,7 +381,7 @@ const useChess = () => {
       i--;
     }
     setTurn(fturn);
-    setGameState(newGame);
+    changeGameState(newGame, turn);
     setHalfMove(Number(fhalfMoves));
     setFullMove(Number(ffullMoves));
     setElPassant(SquareBit[fElPassant]);
@@ -400,7 +391,7 @@ const useChess = () => {
   };
 
   const clearBoard = () =>
-    setGameState(new Array(12).fill(new Long(0x0, 0x0, true)));
+    changeGameState(new Array(12).fill(new Long(0x0, 0x0, true)), turn);
 
   //returns FEN notation of gamestate. Useful for testing
   const getFEN = () => {
@@ -463,6 +454,9 @@ const useChess = () => {
     fullMove,
     turn,
     updateGameState,
+    isCheck:checked,
+    isMate:mate,
+    checkingRays,
   };
 };
 const getBitIndexes = (bitString: Long) => {

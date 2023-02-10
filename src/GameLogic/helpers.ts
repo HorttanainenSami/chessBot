@@ -45,6 +45,12 @@ export const removeBlockedMoves = (
     .shiftLeft(blockingPieceIndex)
     .shiftRightUnsigned(blockingPieceIndex);
 };
+export const getBitPiece = (piece: Piece): bitPieces =>
+  bitPieces[
+    (piece.charAt(0) === 'b'
+      ? piece.charAt(1).toLowerCase()
+      : piece.charAt(1).toLocaleUpperCase()) as keyof typeof bitPieces
+  ];
 
 //Lowercase represents black Uppercase white piece
 export enum bitPieces {
@@ -129,9 +135,3 @@ export enum SquareBit {
   'a8',
 }
 
-export const getBitPiece = (piece: Piece): bitPieces =>
-  bitPieces[
-    (piece.charAt(0) === 'b'
-      ? piece.charAt(1).toLowerCase()
-      : piece.charAt(1).toLocaleUpperCase()) as keyof typeof bitPieces
-  ];
