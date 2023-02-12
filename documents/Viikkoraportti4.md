@@ -1,5 +1,5 @@
 # Viikkoraportti 4
-Elpassant, shakki valmis, matti käytännössä valmis, testit melkein koko ohjelmalle. Seuraavkasi siirryn tekemään minmax algoritmiä
+Elpassant, shakki valmis, matti käytännössä valmis, testit melkein koko ohjelmalle. 
 
 Työskentely 
 
@@ -10,4 +10,4 @@ Työskentely
 
 
 ### Mitä seuraavaksi
-Seuraavaksi lisään elpassant, shakki, matti ja toivottavasti pääsen aloittamaan tekoälyn laudan evaluoinnin.
+Seuraavkasi siirryn tekemään minmax algoritmiä.
