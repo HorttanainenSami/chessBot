@@ -7,6 +7,7 @@ import { logger } from './helpers';
 import { renderHook, act } from '@testing-library/react';
 import Long from 'long';
 import { Color } from '../Types';
+import moveMasks from './preCalculatedMoveMasks';
 const { result } = renderHook(() => useMove());
 const {
   kingPseudoMoves,
@@ -23,7 +24,7 @@ const {
   bitScanBackwards,
   bitScanForward,
   removeBlockedMovesBackwards,
-  removeBlockedMovesForward
+  removeBlockedMovesForward,
 } = result.current;
 const emptyBoardState: Long[] = [
   Long.UZERO,
@@ -46,13 +47,13 @@ const emptyBoardState: Long[] = [
 describe('knightPseudoMoves', () => {
   it('should return the correct pseudo moves for a knight', () => {
     const fromBitIndex = 0;
-    const expectedPseudoMoves = new Long(0x20401, 0, true);
+    const expectedPseudoMoves = Long.fromString('20400', true, 16);
     expect(knightPseudoMoves({ fromBitIndex })).toEqual(expectedPseudoMoves);
   });
 
   it('should return the correct pseudo moves for a knight on the A file', () => {
     const fromBitIndex = 7;
-    const expectedPseudoMoves = new Long(0x402080, 0, true);
+    const expectedPseudoMoves = Long.fromString('402000', true, 16);
     expect(knightPseudoMoves({ fromBitIndex }).toString(2)).toEqual(
       expectedPseudoMoves.toString(2)
     );
@@ -60,14 +61,14 @@ describe('knightPseudoMoves', () => {
 
   it('should return the correct pseudo moves for a knight on the up-left corner', () => {
     const fromBitIndex = 56;
-    const expectedPseudoMoves = new Long(0, 0x1040200, true);
+    const expectedPseudoMoves = Long.fromString('4020000000000', true, 16);
     expect(knightPseudoMoves({ fromBitIndex }).toString(2)).toEqual(
       expectedPseudoMoves.toString(2)
     );
   });
   it('should return the correct pseudo moves for a knight on the middle of board', () => {
     const fromBitIndex = 27;
-    const expectedPseudoMoves = new Long(0x8221400, 0x1422, true);
+    const expectedPseudoMoves = Long.fromString('142200221400', true, 16);
     expect(knightPseudoMoves({ fromBitIndex }).toString(2)).toEqual(
       expectedPseudoMoves.toString(2)
     );
@@ -79,24 +80,23 @@ describe('bishopLegalAttacks', () => {
     const fromBitIndex = 35;
     const occupiedBits = Long.fromString('0x810000000', true, 16);
     const expectedMoves = Long.fromString('0x4122140014020100', true, 16);
-    const result = bishopAttacks({fromBitIndex, occupiedBits});
+    const result = bishopAttacks({ fromBitIndex, occupiedBits });
     expect(result).toEqual(expectedMoves);
   });
   it('should return all possible moves for bishop on D4 when mask contains one blocker ', () => {
     const fromBitIndex = 35;
     const occupiedBits = Long.fromString('0x800000000', true, 16);
     const expectedMoves = Long.fromString('0x4122140014224180', true, 16);
-    const result = bishopAttacks({fromBitIndex, occupiedBits});
+    const result = bishopAttacks({ fromBitIndex, occupiedBits });
     expect(result).toEqual(expectedMoves);
   });
   it('should return all possible moves for bishop on D4 when board is full', () => {
     const fromBitIndex = 35;
     const occupiedBits = Long.fromString('0xffffffffffffffff', true, 16);
     const expectedMoves = Long.fromString('0x140014000000', true, 16);
-    const result = bishopAttacks({fromBitIndex, occupiedBits});
+    const result = bishopAttacks({ fromBitIndex, occupiedBits });
     expect(result).toEqual(expectedMoves);
   });
-
 });
 describe('bishopLegalMoves', () => {
   it('should return all possible moves for bishop on D4 when board is empty', () => {
@@ -223,10 +223,12 @@ describe('check if bishop is absolutely pinned', () => {
     const teammateOccupiedBits = Long.fromString('0xa00000000', true, 16);
     const expectedMoves = Long.fromString('0x0', true, 16);
 
-    const r = s.result.current.bishopLegalMoves({occupiedBits,
+    const r = s.result.current.bishopLegalMoves({
+      occupiedBits,
       fromBitIndex,
       teammateOccupiedBits,
-      color});
+      color,
+    });
     expect(r).toEqual(expectedMoves);
   });
   it('should return zero possible moves for white bishop when its being absolutely pinned from east with Queen', () => {
@@ -278,9 +280,71 @@ describe('kingPseudoMoves', () => {
     const expectedMoves = Long.fromString('0x203000000000000', true, 16);
     expect(kingPseudoMoves({ fromBitIndex })).toEqual(expectedMoves);
   });
-
 });
+describe('isCheck', () => {
+  it('should make check if one enemy queen is attacking king', () => {
+    const s = renderHook(() => useMove());
+    const startState: Long[] = [...emptyBoardState];
+    //setup king white
+    startState[10] = Long.fromString('0x20000000000', true, 16); //28
+    //setup Queen black
+    startState[9] = Long.fromString('0x800000000', true, 16); //21
 
+    const friendlyColor: Color = 'w';
+
+    act(() => {
+      s.result.current.changeGameState(startState, friendlyColor);
+    });
+    s.result.current.gameState.forEach((r, i) => logger(r, i.toString()));
+    const result = s.result.current.isChecked();
+    const doubleCheck = s.result.current.doubleChecked;
+    const mate = s.result.current.mate;
+
+    expect(result).toEqual(false);
+    expect(doubleCheck).toEqual(false);
+    expect(mate).toEqual(false);
+  });
+  it('should make check if one enemy knight is attacking king', () => {
+    const s = renderHook(() => useMove());
+    const startState: Long[] = [...emptyBoardState];
+    //setup king white
+    startState[10] = Long.fromString('0x20000000000', true, 16); //28
+    //setup knight black
+    startState[7] = Long.fromString('0x4000000', true, 16); //21
+
+    const friendlyColor: Color = 'w';
+
+    act(() => s.result.current.changeGameState(startState, friendlyColor));
+    const result = s.result.current.isChecked();
+    const doubleCheck = s.result.current.doubleChecked;
+    const mate = s.result.current.mate;
+
+    expect(result).toEqual(true);
+    expect(doubleCheck).toEqual(false);
+    expect(mate).toEqual(false);
+  });
+  it('should make dobuleCheck if one enemy knight and queen is attacking king', () => {
+    const s = renderHook(() => useMove());
+    const startState: Long[] = [...emptyBoardState];
+    //setup king white
+    startState[10] = Long.fromString('0x20000000000', true, 16); //28
+    //setup knight black
+    startState[7] = Long.fromString('0x4000000', true, 16); //21
+    //setup Queen black
+    startState[9] = Long.fromString('0x8000000', true, 16); //21
+
+    const friendlyColor: Color = 'w';
+
+    act(() => s.result.current.changeGameState(startState, friendlyColor));
+    const result = s.result.current.isChecked();
+    const doubleCheck = s.result.current.doubleChecked;
+    const mate = s.result.current.mate;
+
+    expect(result).toEqual(true);
+    expect(doubleCheck).toEqual(true);
+    expect(mate).toEqual(false);
+  });
+});
 
 //**********************************ROOK*****************************************
 
@@ -288,8 +352,7 @@ describe('RookLegalMoves', () => {
   it('should return all possible moves for rook on D4, empty', () => {
     const color: Color = 'b';
     const fromBitIndex = 28;
-    const pseudoMoves = Long.fromString('0x10101010ff101010', true, 16);
-    const occupiedBits = Long.fromString('0x0', true, 16);
+    const occupiedBits = Long.fromString('0x10101010ff101010', true, 16);
     const expectedMoves = Long.fromString('0x0', true, 16);
     const teammateOccupiedBits = Long.fromString(
       '0x10101010ff101010',
@@ -297,7 +360,6 @@ describe('RookLegalMoves', () => {
       16
     );
     const params = {
-      pseudoMoves,
       occupiedBits,
       teammateOccupiedBits,
       fromBitIndex,
@@ -309,7 +371,6 @@ describe('RookLegalMoves', () => {
   it('should return all possible moves for rook on D4, full of teammates', () => {
     const fromBitIndex = 28;
     const color: Color = 'b';
-    const pseudoMoves = Long.fromString('0x10101010ff101010', true, 16);
     const occupiedBits = Long.fromString('0xffffffffffffffff', true, 16);
     const expectedMoves = Long.fromString('0x0', true, 16);
     const teammateOccupiedBits = Long.fromString(
@@ -318,7 +379,6 @@ describe('RookLegalMoves', () => {
       16
     );
     const params = {
-      pseudoMoves,
       occupiedBits,
       teammateOccupiedBits,
       fromBitIndex,
@@ -333,12 +393,10 @@ describe('RookLegalMoves', () => {
   it('should return all possible moves for rook on D4, full of enemies', () => {
     const fromBitIndex = 28;
     const color: Color = 'b';
-    const pseudoMoves = Long.fromString('0x10101010ff101010', true, 16);
     const occupiedBits = Long.fromString('0xffffffffffffffff', true, 16);
     const expectedMoves = Long.fromString('0x1028100000', true, 16);
     const teammateOccupiedBits = Long.fromString('0x10000000', true, 16);
     const params = {
-      pseudoMoves,
       occupiedBits,
       teammateOccupiedBits,
       fromBitIndex,
@@ -350,7 +408,6 @@ describe('RookLegalMoves', () => {
   it('should return all possible moves for rook on D4, some filled', () => {
     const fromBitIndex = 28;
     const color: Color = 'b';
-    const pseudoMoves = Long.fromString('0x10101010ff101010', true, 16);
     const occupiedBits = Long.fromString('0x10101000c3101010', true, 16);
     const expectedMoves = Long.fromString('0x106e000000', true, 16);
     const teammateOccupiedBits = Long.fromString(
@@ -359,7 +416,6 @@ describe('RookLegalMoves', () => {
       16
     );
     const params = {
-      pseudoMoves,
       occupiedBits,
       teammateOccupiedBits,
       fromBitIndex,
@@ -369,6 +425,35 @@ describe('RookLegalMoves', () => {
     expect(rookLegalMoves(params).toString(2)).toEqual(
       expectedMoves.toString(2)
     );
+  });
+  it('should return all possible moves for rook on D4, some filled', () => {
+    const fromBitIndex = 28;
+    const color: Color = 'b';
+    const occupiedBits = Long.fromString('0x10100000', true, 16);
+    const expectedMoves = Long.fromString('0x10101010ef100000', true, 16);
+    const teammateOccupiedBits = Long.fromString('0x10000000', true, 16);
+
+    const r = rookLegalMoves({
+      occupiedBits,
+      teammateOccupiedBits,
+      fromBitIndex,
+      color,
+    });
+    expect(r).toEqual(expectedMoves);
+  });
+  it('should return all possible moves for rook on b2, some filled', () => {
+    const fromBitIndex = 13;
+    const color: Color = 'w';
+    const occupiedBits = Long.fromString('0x302000', true, 16);
+    const expectedMoves = Long.fromString('0xdf20', true, 16);
+    const teammateOccupiedBits = Long.fromString('0x300000', true, 16);
+    const r = rookLegalMoves({
+      occupiedBits,
+      teammateOccupiedBits,
+      fromBitIndex,
+      color,
+    });
+    expect(r).toEqual(expectedMoves);
   });
 });
 
@@ -382,10 +467,9 @@ describe('RookLegalAttacks', () => {
       occupiedBits,
       fromBitIndex,
     };
-
-    expect(rookLegalAttacks(params)).toEqual(expectedMoves);
+    const r = rookLegalAttacks(params);
+    expect(r).toEqual(expectedMoves);
   });
-
 });
 describe('check if rook is absolutely pinned', () => {
   it('should return zero possible moves for white rook when its being absolutely pinned from southW with bishop', () => {
@@ -407,13 +491,15 @@ describe('check if rook is absolutely pinned', () => {
     const occupiedBits = Long.fromString('0x810200000', true, 16);
     const teammateOccupiedBits = Long.fromString('0x810000000', true, 16);
     const expectedMoves = Long.fromString('0x0', true, 16);
-  
-    expect(s.result.current.rookLegalMoves({
-      occupiedBits,
-      fromBitIndex,
-      teammateOccupiedBits,
-      color,
-    })).toEqual(expectedMoves);
+
+    expect(
+      s.result.current.rookLegalMoves({
+        occupiedBits,
+        fromBitIndex,
+        teammateOccupiedBits,
+        color,
+      })
+    ).toEqual(expectedMoves);
   });
   it('should return zero possible moves for white rook when its being absolutely pinned from Southeast with bishop', () => {
     const s = renderHook(() => useMove());
@@ -745,7 +831,6 @@ describe('pawnLegalMoves', () => {
 /////////////////////////////////////////////////FUNCTIONS//////////////////////////////
 
 describe('xrayRookAttacks', () => {
-
   it('should calculate correct xray rook attacks with enpty board', () => {
     const occupied = Long.fromString('0x0', true, 16);
     const blockers = Long.fromString('0x0', true, 16);
@@ -765,7 +850,7 @@ describe('xrayRookAttacks', () => {
     const result = xrayRookAttacks(occupied, blockers, square);
     expect(result).toEqual(expectedAttacks);
   });
-  
+
   it('should calculate correct xray rook attacks', () => {
     const occupied = Long.fromString('0x15', true, 16);
     const blockers = Long.fromString('0x5', true, 16);
@@ -785,7 +870,6 @@ describe('xrayRookAttacks', () => {
     const result = xrayRookAttacks(occupied, blockers, square);
 
     expect(result).toEqual(expectedAttacks);
-
   });
 });
 
@@ -806,10 +890,14 @@ describe('xrayBishopAttacks', () => {
     const square = 0;
 
     const expectedAttacks = Long.fromString('0x8000000', true, 16);
-    const result = s.result.current.xrayBishopAttacks(occupied, blockers, square);
+    const result = s.result.current.xrayBishopAttacks(
+      occupied,
+      blockers,
+      square
+    );
     expect(result).toEqual(expectedAttacks);
   });
-  
+
   it('should calculate correct xray bishop attacks', () => {
     const occupied = Long.fromString('0x1008040001', true, 16);
     const blockers = Long.fromString('0x40001', true, 16);
@@ -829,7 +917,6 @@ describe('xrayBishopAttacks', () => {
     const result = xrayBishopAttacks(occupied, blockers, square);
     expect(result).toEqual(expectedAttacks);
   });
-  
 });
 
 describe('bitScanForward', () => {
@@ -916,42 +1003,56 @@ describe('RemoveBlockedMovesBackwards', () => {
     const occupiedBits = Long.fromString('0x10000000', true, 16);
     const moveMask = Long.fromString('0x1f000000', true, 16);
     const expectedMoves = Long.fromString('0x1f000000', true, 16);
-    expect(removeBlockedMovesBackwards(fromBitIndex, moveMask, occupiedBits)).toEqual(expectedMoves);
+    expect(
+      removeBlockedMovesBackwards(fromBitIndex, moveMask, occupiedBits)
+    ).toEqual(expectedMoves);
   });
   it('should return all possible moves for Smask, without any blockers from d4', () => {
     const fromBitIndex = 28;
     const occupiedBits = Long.fromString('0x10000000', true, 16);
     const moveMask = Long.fromString('0x1010101010000000', true, 16);
     const expectedMoves = Long.fromString('0x1010101010000000', true, 16);
-    expect(removeBlockedMovesBackwards(fromBitIndex, moveMask, occupiedBits)).toEqual(expectedMoves);
+    expect(
+      removeBlockedMovesBackwards(fromBitIndex, moveMask, occupiedBits)
+    ).toEqual(expectedMoves);
   });
   it('should return all possible moves for Emask on D4, full', () => {
     const fromBitIndex = 28;
     const occupiedBits = Long.fromString('0xffffffffffffffff', true, 16);
     const moveMask = Long.fromString('0x1f000000', true, 16);
     const expectedMoves = Long.fromString('0x18000000', true, 16);
-    expect(removeBlockedMovesBackwards(fromBitIndex, moveMask, occupiedBits)).toEqual(expectedMoves);
+    expect(
+      removeBlockedMovesBackwards(fromBitIndex, moveMask, occupiedBits)
+    ).toEqual(expectedMoves);
   });
   it('should return all possible moves for Emask on D4, full, remove blockers', () => {
     const fromBitIndex = 28;
     const occupiedBits = Long.fromString('0xffffffffffffffff', true, 16);
     const moveMask = Long.fromString('0x1f000000', true, 16);
     const expectedMoves = Long.fromString('0x10000000', true, 16);
-    expect(removeBlockedMovesBackwards(fromBitIndex, moveMask, occupiedBits, true)).toEqual(expectedMoves);
+    expect(
+      removeBlockedMovesBackwards(fromBitIndex, moveMask, occupiedBits, true)
+    ).toEqual(expectedMoves);
   });
   it('should return all possible moves for Smask on D4, full', () => {
     const fromBitIndex = 28;
     const occupiedBits = Long.fromString('0xffffffffffffffff', true, 16);
     const moveMask = Long.fromString('0x10101010', true, 16);
     const expectedMoves = Long.fromString('0x10100000', true, 16);
-    expect(removeBlockedMovesBackwards(fromBitIndex, moveMask, occupiedBits)).toEqual(expectedMoves);
+    expect(
+      removeBlockedMovesBackwards(fromBitIndex, moveMask, occupiedBits)
+    ).toEqual(expectedMoves);
   });
   it('should return all possible moves for Smask on D4, full', () => {
     const fromBitIndex = 48;
     const occupiedBits = Long.fromString('0x1000000000000', true, 16);
     const moveMask = Long.fromString('0x10100000000', true, 16);
     const expectedMoves = Long.fromString('0x10100000000', true, 16);
-    const result = removeBlockedMovesBackwards(fromBitIndex, moveMask, occupiedBits);
+    const result = removeBlockedMovesBackwards(
+      fromBitIndex,
+      moveMask,
+      occupiedBits
+    );
     expect(result).toEqual(expectedMoves);
   });
   it('should return all possible moves for Smask on D4, full', () => {
@@ -959,7 +1060,9 @@ describe('RemoveBlockedMovesBackwards', () => {
     const occupiedBits = Long.fromString('0x1000000000000', true, 16);
     const moveMask = Long.fromString('0x10100000000', true, 16);
     const expectedMoves = Long.fromString('0x10100000000', true, 16);
-    expect(removeBlockedMovesForward(fromBitIndex, moveMask, occupiedBits, true)).toEqual(expectedMoves);
+    expect(
+      removeBlockedMovesForward(fromBitIndex, moveMask, occupiedBits, true)
+    ).toEqual(expectedMoves);
   });
 });
 
@@ -969,28 +1072,344 @@ describe('RemoveBlockedMovesForward', () => {
     const occupiedBits = Long.fromString('0x10000000', true, 16);
     const moveMask = Long.fromString('0xf0000000', true, 16);
     const expectedMoves = Long.fromString('0xf0000000', true, 16);
-    expect(removeBlockedMovesForward(fromBitIndex, moveMask, occupiedBits)).toEqual(expectedMoves);
+    expect(
+      removeBlockedMovesForward(fromBitIndex, moveMask, occupiedBits)
+    ).toEqual(expectedMoves);
   });
   it('should return all possible moves for positive Nmask from D4', () => {
     const fromBitIndex = 28;
     const occupiedBits = Long.fromString('0x10000000', true, 16);
     const moveMask = Long.fromString('0x1010101010000000', true, 16);
     const expectedMoves = Long.fromString('0x1010101010000000', true, 16);
-    expect(removeBlockedMovesForward(fromBitIndex, moveMask, occupiedBits)).toEqual(expectedMoves);
+    expect(
+      removeBlockedMovesForward(fromBitIndex, moveMask, occupiedBits)
+    ).toEqual(expectedMoves);
   });
   it('should return all possible moves for Nmask on D4, full', () => {
     const fromBitIndex = 28;
     const occupiedBits = Long.fromString('0xffffffffffffffff', true, 16);
     const moveMask = Long.fromString('0x1010101010000000', true, 16);
     const expectedMoves = Long.fromString('0x1010000000', true, 16);
-    expect(removeBlockedMovesForward(fromBitIndex, moveMask, occupiedBits)).toEqual(expectedMoves);
+    expect(
+      removeBlockedMovesForward(fromBitIndex, moveMask, occupiedBits)
+    ).toEqual(expectedMoves);
   });
   it('should return all possible moves for Wmask on D4, full', () => {
     const fromBitIndex = 28;
     const occupiedBits = Long.fromString('0xffffffffffffffff', true, 16);
     const moveMask = Long.fromString('0xf0000000', true, 16);
     const expectedMoves = Long.fromString('0x30000000', true, 16);
-    expect(removeBlockedMovesForward(fromBitIndex, moveMask, occupiedBits)).toEqual(expectedMoves);
+    expect(
+      removeBlockedMovesForward(fromBitIndex, moveMask, occupiedBits)
+    ).toEqual(expectedMoves);
   });
-  
+});
+
+describe('SquareIsAttacked', () => {
+  it('check if queen is attacking some of its rays, ', () => {
+    const s = renderHook(() => useMove());
+    const startState: Long[] = [...emptyBoardState];
+    //setup king white
+    //startState[10] = Long.fromString('0x800000000', true, 16); //21
+    //setup Queen black
+    startState[9] = Long.fromString('0x200000', true, 16); //35
+
+    const friendlyColor: Color = 'w';
+
+    act(() => s.result.current.changeGameState(startState, friendlyColor));
+    const occupiedBits = startState.reduce(
+      (acc, cur) => cur.or(acc),
+      Long.UZERO
+    );
+    const teammateOccupiedBits = startState.reduce((acc, curr, i) => {
+      //i%2===0 if black
+      //i%2!==0 if white
+      if (i % 2 !== 0) return acc;
+      return acc.or(curr);
+    }, new Long(0, 0, true));
+    expect(
+      s.result.current.squareIsAttacked({
+        occupiedBits,
+        fromBitIndex: 56,
+        friendlyColor: friendlyColor,
+      })
+    ).toEqual(true);
+    expect(
+      s.result.current.squareIsAttacked({
+        occupiedBits,
+        fromBitIndex: 16,
+        friendlyColor: friendlyColor,
+      })
+    ).toEqual(true);
+    expect(
+      s.result.current.squareIsAttacked({
+        occupiedBits,
+        fromBitIndex: 3,
+        friendlyColor: friendlyColor,
+      })
+    ).toEqual(true);
+    expect(
+      s.result.current.squareIsAttacked({
+        occupiedBits,
+        fromBitIndex: 5,
+        friendlyColor: friendlyColor,
+      })
+    ).toEqual(true);
+    expect(
+      s.result.current.squareIsAttacked({
+        occupiedBits,
+        fromBitIndex: 7,
+        friendlyColor: friendlyColor,
+      })
+    ).toEqual(true);
+    expect(
+      s.result.current.squareIsAttacked({
+        occupiedBits,
+        fromBitIndex: 23,
+        friendlyColor: friendlyColor,
+      })
+    ).toEqual(true);
+    expect(
+      s.result.current.squareIsAttacked({
+        occupiedBits,
+        fromBitIndex: 39,
+        friendlyColor: friendlyColor,
+      })
+    ).toEqual(true);
+    expect(
+      s.result.current.squareIsAttacked({
+        occupiedBits,
+        fromBitIndex: 61,
+        friendlyColor: friendlyColor,
+      })
+    ).toEqual(true);
+    expect(
+      s.result.current.squareIsAttacked({
+        occupiedBits,
+        fromBitIndex: 21,
+        friendlyColor: friendlyColor,
+      })
+    ).toEqual(false);
+  });
+  it('check if queen is attacking all its rays, and blocker is blocking attack ', () => {
+    const s = renderHook(() => useMove());
+    const startState: Long[] = [...emptyBoardState];
+    //setup king white
+    startState[10] = Long.fromString('0x800000000', true, 16); //35
+    //setup Queen black
+    startState[9] = Long.fromString('0x200000', true, 16); //21
+
+    const friendlyColor: Color = 'w';
+
+    act(() => s.result.current.changeGameState(startState, friendlyColor));
+    const occupiedBits = startState.reduce(
+      (acc, cur) => cur.or(acc),
+      Long.UZERO
+    );
+    const teammateOccupiedBits = startState.reduce((acc, curr, i) => {
+      //i%2===0 if black
+      //i%2!==0 if white
+      if (i % 2 !== 0) return acc;
+      return acc.or(curr);
+    }, new Long(0, 0, true));
+    expect(
+      s.result.current.squareIsAttacked({
+        occupiedBits,
+        fromBitIndex: 35,
+        friendlyColor: friendlyColor,
+      })
+    ).toEqual(true);
+    expect(
+      s.result.current.squareIsAttacked({
+        occupiedBits,
+        fromBitIndex: 28,
+        friendlyColor: friendlyColor,
+      })
+    ).toEqual(true);
+    expect(
+      s.result.current.squareIsAttacked({
+        occupiedBits,
+        fromBitIndex: 42,
+        friendlyColor: friendlyColor,
+      })
+    ).toEqual(false);
+  });
+  it('check if black is attacking all queens nerest squares, and white is attacking black when board is full of white exept black queen ', () => {
+    const s = renderHook(() => useMove());
+    const startState: Long[] = [...emptyBoardState];
+    //setup Queen white
+    startState[8] = Long.fromString('0xfffffff7ffffffff', true, 16);
+    //setup Queen black
+    startState[9] = Long.fromString('0x800000000', true, 16); //35
+
+    const friendlyColor: Color = 'w';
+
+    act(() => s.result.current.changeGameState(startState, friendlyColor));
+    const occupiedBits = startState.reduce(
+      (acc, cur) => cur.or(acc),
+      Long.UZERO
+    );
+
+    expect(
+      s.result.current.squareIsAttacked({
+        occupiedBits,
+        fromBitIndex: 35,
+        friendlyColor: friendlyColor,
+      })
+    ).toEqual(false);
+    expect(
+      s.result.current.squareIsAttacked({
+        occupiedBits,
+        fromBitIndex: 28,
+        friendlyColor: friendlyColor,
+      })
+    ).toEqual(true);
+    expect(
+      s.result.current.squareIsAttacked({
+        occupiedBits,
+        fromBitIndex: 42,
+        friendlyColor: friendlyColor,
+      })
+    ).toEqual(true);
+  });
+});
+describe('kingMoveMaskThatIsNotAttacked', () => {
+  it('check if queen is blocking all kings moves that queen is attacking, but king can eat queen', () => {
+    const s = renderHook(() => useMove());
+    const startState: Long[] = [...emptyBoardState];
+    //setup king white
+    startState[10] = Long.fromString('0x10000000', true, 16); //28
+    //setup Queen black
+    startState[9] = Long.fromString('0x200000', true, 16); //21
+
+    const friendlyColor: Color = 'w';
+
+    act(() => s.result.current.changeGameState(startState, friendlyColor));
+    const occupiedBits = startState.reduce(
+      (acc, cur) => cur.or(acc),
+      Long.UZERO
+    );
+    const square = startState[10].countTrailingZeros();
+    const moveMask = moveMasks.getKingMoves(square);
+    const expectedMoves = Long.fromString('0x1808200000', true, 16);
+
+    expect(
+      s.result.current.kingMoveMaskThatIsNotAttacked(
+        moveMask,
+        occupiedBits,
+        friendlyColor
+      )
+    ).toEqual(expectedMoves);
+  });
+  it('check if queen is blocking all kings moves that queen is attacking, but king can eat queen', () => {
+    const s = renderHook(() => useMove());
+    const startState: Long[] = [...emptyBoardState];
+    //setup pawns white
+    startState[0] = Long.fromString('0x3828000000', true, 16); //28
+    //setup king white
+    startState[10] = Long.fromString('0x10000000', true, 16); //28
+    //setup Queen black
+    startState[9] = Long.fromString('0x200000', true, 16); //21
+
+    const friendlyColor: Color = 'w';
+
+    act(() => s.result.current.changeGameState(startState, friendlyColor));
+    const occupiedBits = startState.reduce(
+      (acc, cur) => cur.or(acc),
+      Long.UZERO
+    );
+    const teammateOccupied = Long.fromString('0x3838000000', true, 16);
+    const square = startState[10].countTrailingZeros();
+    const moveMask = moveMasks.getKingMoves(square).and(teammateOccupied.not());
+    const expectedMoves = Long.fromString('0x200000', true, 16);
+
+    const result = s.result.current.kingMoveMaskThatIsNotAttacked(
+      moveMask,
+      occupiedBits,
+      friendlyColor
+    );
+    expect(result).toEqual(expectedMoves);
+  });
+  it('check if queen is blocking all kings moves that queen is attacking, but king cannot eat queen because its protected', () => {
+    const s = renderHook(() => useMove());
+    const startState: Long[] = [...emptyBoardState];
+    //setup pawns white
+    startState[0] = Long.fromString('0x3828000000', true, 16); //28
+    //setup king white
+    startState[10] = Long.fromString('0x10000000', true, 16); //28
+    //setup Queen black
+    startState[9] = Long.fromString('0x200000', true, 16); //21
+    //black knigth protecting queen
+    startState[7] = Long.fromString('0x40', true, 16);
+
+    const friendlyColor: Color = 'w';
+
+    act(() => s.result.current.changeGameState(startState, friendlyColor));
+    const occupiedBits = startState.reduce(
+      (acc, cur) => cur.or(acc),
+      Long.UZERO
+    );
+    const teammateOccupied = Long.fromString('0x3838000000', true, 16);
+    const square = startState[10].countTrailingZeros();
+    const moveMask = moveMasks.getKingMoves(square).and(teammateOccupied.not());
+    const expectedMoves = Long.fromString('0x0', true, 16);
+
+    const result = s.result.current.kingMoveMaskThatIsNotAttacked(
+      moveMask,
+      occupiedBits,
+      friendlyColor
+    );
+    expect(result).toEqual(expectedMoves);
+  });
+  it('check if queen is blocking all kings moves that queen is attacking, but king cannot eat queen because its protected', () => {
+    const s = renderHook(() => useMove());
+    const startState: Long[] = [...emptyBoardState];
+    //setup pawns white
+    startState[0] = Long.fromString('0x3000000000000', true, 16); //28
+    //setup king white
+    startState[10] = Long.fromString('0x20000000000', true, 16); //28
+    //setup Queen black
+    startState[9] = Long.fromString('0x800000000', true, 16); //21
+    //black knigth protecting queen
+    startState[7] = Long.fromString('0x4000000000000', true, 16);
+
+    const friendlyColor: Color = 'w';
+
+    act(() => s.result.current.changeGameState(startState, friendlyColor));
+    const occupiedBits = startState.reduce(
+      (acc, cur) => cur.or(acc),
+      Long.UZERO
+    );
+    const teammateOccupied = Long.fromString('0x3020000000000', true, 16);
+    const square = startState[10].countTrailingZeros();
+    const moveMask = moveMasks.getKingMoves(square).and(teammateOccupied.not());
+    const expectedMoves = Long.fromString('0x4000000000000', true, 16);
+
+    const result = s.result.current.kingMoveMaskThatIsNotAttacked(
+      moveMask,
+      occupiedBits,
+      friendlyColor
+    );
+    expect(result).toEqual(expectedMoves);
+  });
+});
+describe('changeGameState', () => {
+  it('check if turn is changing after gameState change', () => {
+    const s = renderHook(() => useMove());
+    const startState: Long[] = [...emptyBoardState];
+    //setup king white
+    startState[10] = Long.fromString('0x10000000', true, 16); //28
+    //setup Queen black
+    startState[9] = Long.fromString('0x200000', true, 16); //21
+
+    const friendlyColor: Color = 'w';
+
+    act(() => s.result.current.changeGameState(startState, friendlyColor));
+    const occupiedBits = startState.reduce(
+      (acc, cur) => cur.or(acc),
+      Long.UZERO
+    );
+
+    expect(0).toEqual(0);
+  });
 });

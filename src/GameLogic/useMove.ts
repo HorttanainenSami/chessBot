@@ -40,6 +40,7 @@ const useMove = () => {
   const [doubleChecked, setDoubleChecked] = useState(false);
   const [checkingRays, setCheckingRays] = useState(Long.UZERO);
   const [mate, setMate] = useState(false);
+  const [turn, setTurn] = useState<Color>('w');
 
   //return all possible moves that king can do in empty board from current square
   const kingPseudoMoves = ({ fromBitIndex }: { fromBitIndex: number }) => {
@@ -49,19 +50,53 @@ const useMove = () => {
   const kingLegalMoves = ({
     fromBitIndex,
     occupiedBits,
-    enemyOccupied,
+    color,
+    teammateOccupied,
   }: {
     fromBitIndex: number;
     occupiedBits: Long;
     enemyOccupied: Long;
+    color: Color;
+    teammateOccupied: Long;
   }) => {
     //filter attacked squares
-    const pseudoMoves = checkingRays
-      .not()
-      .and(kingPseudoMoves({ fromBitIndex }));
-    const legalMoves = pseudoMoves.and(occupiedBits.xor(enemyOccupied).not());
-    return legalMoves;
+    const pseudoMoves = kingPseudoMoves({ fromBitIndex });
+    const legalMoves = pseudoMoves.and(teammateOccupied.not());
+    const notAttackedSquares = kingMoveMaskThatIsNotAttacked(
+      legalMoves,
+      occupiedBits.xor(Long.UONE.shl(fromBitIndex)),
+      color
+    );
+    return notAttackedSquares;
   };
+  //returns Long of all attacked
+  function kingMoveMaskThatIsNotAttacked(
+    moveMask: Long,
+    occupiedBits: Long,
+    color: Color
+  ) {
+    //scan all bits
+    let allMoves = moveMask;
+    let squaresAttacked = Long.UZERO;
+    while (!allMoves.isZero()) {
+      const square = allMoves.countTrailingZeros();
+      if (square === 64) return moveMask.and(squaresAttacked.not());
+      const attacked = squareIsAttacked({
+        occupiedBits,
+        fromBitIndex: square,
+        friendlyColor: color,
+      });
+      console.log(square, attacked);
+      if (attacked) squaresAttacked = squaresAttacked.or(Long.UONE.shl(square));
+      //remove checked square
+      const squarePosition = Long.UONE.shl(square).not();
+      allMoves = allMoves.and(squarePosition);
+    }
+    logger(moveMask, `moveMask ${color}`);
+    logger(squaresAttacked, 'squaresAttacked');
+    logger(moveMask.and(squaresAttacked.not()), 'm.and(sA.not())');
+    return moveMask.and(squaresAttacked.not());
+  }
   useEffect(() => calculatePinned(gameState, 'w'), []);
 
   const calculatePinned = (state: Long[], color: Color) => {
@@ -73,7 +108,6 @@ const useMove = () => {
       (acc, curr) => acc.or(curr),
       new Long(0x0, 0x0, true)
     );
-
     const teammateOccupiedBits =
       color === 'w' ? occupiedBits.xor(blackOccupiedBits) : blackOccupiedBits;
     const pinned = pinnedPieces(
@@ -99,22 +133,22 @@ const useMove = () => {
       (acc, curr, i) => (i % 2 === 0 ? acc : acc.or(curr)),
       Long.UONE
     );
-    const occupiedBits = state.reduce((acc, curr) => acc.or(curr), Long.UONE);
+    const occupiedBits = state.reduce((acc, curr) => acc.or(curr), Long.UZERO);
     const teammateOccupiedBits =
       color === 'b' ? blackOccupiedBits : occupiedBits.xor(blackOccupiedBits);
-    const enemyOccupied =
-      color === 'b' ? occupiedBits.xor(blackOccupiedBits) : blackOccupiedBits;
+
     const kingPosition =
       color === 'b' ? (state[11] as Long) : (state[10] as Long);
     const fromBitIndex = kingPosition.countTrailingZeros();
-    if (
-      squareIsAttacked({
-        occupiedBits,
-        fromBitIndex,
-        teammateOccupiedBits,
-        friendlyColor: color,
-      })
-    ) {
+    if (fromBitIndex === 64) return;
+    const kingSquareIsAttacked = squareIsAttacked({
+      occupiedBits,
+      fromBitIndex,
+      friendlyColor: color,
+      state,
+    });
+    console.log(kingSquareIsAttacked);
+    if (kingSquareIsAttacked) {
       setChecked(true);
       const { rays, numOfChecks } = kingIsAttackedFrom({
         occupiedBits,
@@ -129,6 +163,8 @@ const useMove = () => {
           fromBitIndex,
           occupiedBits,
           enemyOccupied: occupiedBits.xor(teammateOccupiedBits),
+          teammateOccupied: teammateOccupiedBits,
+          color,
         }).and(rays.not());
 
         if (filteredkMoves.isZero()) {
@@ -143,10 +179,13 @@ const useMove = () => {
       setDoubleChecked(false);
     }
   }
-  const changeGameState = (state: Long[], turn: Color) => {
+  const changeGameState = (state: Long[], toColor?: Color) => {
     setGameState(state);
-    calculatePinned(state, turn);
-    isCheck(state, turn);
+    //if color is given as parameter or get next players color
+    const color = toColor ? toColor : turn === 'w' ? 'b' : 'w';
+    setTurn(color);
+    calculatePinned(state, color);
+    isCheck(state, color);
   };
   interface IbishopLegalMoves {
     occupiedBits: Long;
@@ -187,9 +226,10 @@ const useMove = () => {
     }
     const pseudoAttacks = bishopAttacks({ fromBitIndex, occupiedBits });
     //filter teammates from possible attack
+    //prettier-ignore
     return checked
-      ? pseudoAttacks.and(teammateOccupiedBits.not()).and(checkingRays)
-      : pseudoAttacks.and(teammateOccupiedBits.not());
+      ? pseudoAttacks.and(teammateOccupiedBits.xor(Long.UONE.shl(fromBitIndex)).not()).and(checkingRays)
+      : pseudoAttacks.and(teammateOccupiedBits.xor(Long.UONE.shl(fromBitIndex)).not());
   };
   const bishopAttacks = ({
     fromBitIndex,
@@ -206,7 +246,11 @@ const useMove = () => {
     const pSW = removeBlockedMovesBackwards(fromBitIndex, SWMask, occupiedBits);
     const pSE = removeBlockedMovesBackwards(fromBitIndex, SEMask, occupiedBits);
 
-    const pseudoAttacks = pNW.or(pNE).or(pSW).or(pSE).xor(Long.UONE.shl(fromBitIndex));
+    const pseudoAttacks = pNW
+      .or(pNE)
+      .or(pSW)
+      .or(pSE)
+      .and(Long.UONE.shl(fromBitIndex).not());
     return pseudoAttacks;
   };
 
@@ -240,23 +284,22 @@ const useMove = () => {
         return Long.UZERO;
       }
       //check in what direction pinner is
-      const legalMoves = getRookPinnerDirection(
+      return getRookPinnerDirection(
         fromBitIndex,
         kingPosition.countTrailingZeros(),
         piecePosition,
         occupiedBits
       );
-      return checked ? legalMoves.and(checkingRays) : legalMoves;
     }
 
     const legalAttacks = rookLegalAttacks({
       fromBitIndex,
       occupiedBits,
     });
-    const legalMoves = legalAttacks.and(
-      Long.MAX_UNSIGNED_VALUE.xor(teammateOccupiedBits)
-    );
-    return legalMoves;
+    const legalMoves = legalAttacks
+      .and(Long.MAX_UNSIGNED_VALUE.xor(teammateOccupiedBits))
+      .and(Long.UONE.shl(fromBitIndex).not());
+    return checked ? legalMoves.and(checkingRays) : legalMoves;
   };
 
   const rookLegalAttacks = ({
@@ -267,7 +310,6 @@ const useMove = () => {
     const SMoveMask = moveMasks.getS(fromBitIndex);
     const WMoveMask = moveMasks.getW(fromBitIndex);
     const EMoveMask = moveMasks.getE(fromBitIndex);
-
     //positive
     const NAttacks = removeBlockedMovesForward(
       fromBitIndex,
@@ -279,7 +321,7 @@ const useMove = () => {
       WMoveMask,
       occupiedBits
     );
-    
+
     const EAttacks = removeBlockedMovesBackwards(
       fromBitIndex,
       EMoveMask,
@@ -291,7 +333,10 @@ const useMove = () => {
       occupiedBits
     );
 
-    return NAttacks.or(WAttacks).or(EAttacks).or(SAttacks);
+    return NAttacks.or(WAttacks)
+      .or(EAttacks)
+      .or(SAttacks)
+      .and(Long.UONE.shl(fromBitIndex).not());
   };
 
   interface IpawnPseudoMoves {
@@ -368,6 +413,7 @@ const useMove = () => {
       );
     }
     const pseudoMoves = pawnPseudoMoves({ fromBitIndex, color });
+    //prettier-ignore
     const pseudoMovesBlockerRemoved =
       color === 'w'
         ? removeBlockedMovesForward(
@@ -420,14 +466,16 @@ const useMove = () => {
     fromBitIndex,
     color,
     teammateOccupiedBits,
+    state = gameState,
   }: {
     occupiedBits: Long;
     fromBitIndex: number;
     teammateOccupiedBits: Long;
     color: Color;
+    state?: Long[];
   }) => {
     const colorHelper = color === 'w' ? 0 : 1;
-    const pawns = gameState[1 - colorHelper] as Long;
+    const pawns = state[1 - colorHelper] as Long;
     let checkRays = Long.UZERO;
     let numOfChecks = 0;
     const pawnAttack = pawnPseudoAttacks({ fromBitIndex, color }).and(pawns);
@@ -435,8 +483,8 @@ const useMove = () => {
       checkRays = checkRays.or(pawnAttack);
       numOfChecks += 1;
     }
-    const rooks = gameState[3 - colorHelper] as Long;
-    const queens = gameState[9 - colorHelper] as Long;
+    const rooks = state[3 - colorHelper] as Long;
+    const queens = state[9 - colorHelper] as Long;
     const rooksQueens = queens.or(rooks);
     const rookAttacks = rookLegalMoves({
       color,
@@ -448,7 +496,7 @@ const useMove = () => {
       checkRays = checkRays.or(rookAttacks);
       numOfChecks += 1;
     }
-    const bishops = gameState[5 - colorHelper] as Long;
+    const bishops = state[5 - colorHelper] as Long;
     const bishopsQueens = queens.or(bishops);
     const params = {
       teammateOccupiedBits,
@@ -461,7 +509,7 @@ const useMove = () => {
       checkRays = checkRays.or(bishopAttacks);
       numOfChecks += 1;
     }
-    const knights = gameState[7 - colorHelper] as Long;
+    const knights = state[7 - colorHelper] as Long;
     const knightAttacks = moveMasks.getKnightMoves(fromBitIndex).and(knights);
     if (!knightAttacks.isZero()) {
       checkRays = checkRays.or(knightAttacks);
@@ -481,70 +529,97 @@ const useMove = () => {
     }
     return rays.xor(Long.UONE.shl(kingSquare));
   };
-
-  // can be used for checking if king is attacked
+  const isChecked = () => checked;
+  //occupiedBits: BB of all pieces in board
+  //fromBitIndex: index of square that is checked if its attacked by enemy pieces
+  //firendlyColor: color from what perspective square is examined
+  //teammateOccupiedBits: BB of all teammate bits in board
+  //return:
+  //    true if enemypawns attack intercepts with square,
+  //    false if not/or enemypawn is in square but is not defended by enemy pawn
   const squareIsAttacked = ({
     occupiedBits,
     fromBitIndex,
     friendlyColor,
-    teammateOccupiedBits,
+    state = gameState,
   }: {
     occupiedBits: Long;
     fromBitIndex: number;
-    teammateOccupiedBits: Long;
     friendlyColor: Color;
+    state?: Long[];
   }) => {
     const enemyColorHelper = friendlyColor === 'w' ? 0 : 1;
-    const ePawns = gameState[1 - enemyColorHelper] as Long;
+    const ePawns = state[1 - enemyColorHelper] as Long;
+    logger(ePawns, 'pawns');
+    //check if pawnAttack from examined square contains enemy pawn
+    logger(occupiedBits, `occupied, ${fromBitIndex} ${friendlyColor}`);
     if (
       !pawnPseudoAttacks({ fromBitIndex, color: friendlyColor })
         .and(ePawns)
         .isZero()
     ) {
+      console.log('pawn');
+
       return true;
     }
-    const eRooks = gameState[3 - enemyColorHelper] as Long;
-    const eQueens = gameState[9 - enemyColorHelper] as Long;
+    const eRooks = state[3 - enemyColorHelper] as Long;
+    const eQueens = state[9 - enemyColorHelper] as Long;
     const eRooksQueens = eQueens.or(eRooks);
+    //check if rookAttack from examined square contains enemy Rook/Queen
     if (
-      !rookLegalMoves({
-        color: friendlyColor,
+      !rookLegalAttacks({
         occupiedBits,
-        teammateOccupiedBits,
         fromBitIndex,
       })
         .and(eRooksQueens)
         .isZero()
     ) {
+      console.log('rookQueen');
+
       return true;
     }
-    const eBishops = gameState[5 - enemyColorHelper] as Long;
+    const eBishops = state[5 - enemyColorHelper] as Long;
     const eBbishopsQueens = eQueens.or(eBishops);
-    const params = {
-      teammateOccupiedBits,
-      fromBitIndex,
-      occupiedBits,
-      color: friendlyColor,
-    };
-    if (!bishopLegalMoves(params).and(eBbishopsQueens).isZero()) {
+
+    //check if bishopAttack from examined square contains enemy Bishop/Queen
+    if (
+      !bishopAttacks({
+        fromBitIndex,
+        occupiedBits,
+      })
+        .and(eBbishopsQueens)
+        .isZero()
+    ) {
+      console.log('bishopQueen');
+
       return true;
     }
-    const eKnights = gameState[7 - enemyColorHelper] as Long;
+    const eKnights = state[7 - enemyColorHelper] as Long;
+    //check if knightAttack from examined square contains enemy Knight
     if (!moveMasks.getKnightMoves(fromBitIndex).and(eKnights).isZero()) {
+      console.log('knight');
+
       return true;
     }
-    const eKings = gameState[11 - enemyColorHelper] as Long;
+    const eKings = state[11 - enemyColorHelper] as Long;
+    //check if kingAttack from examined square contains enemy King
     if (!moveMasks.getKingMoves(fromBitIndex).and(eKings).isZero()) {
+      console.log('king');
+
       return true;
     }
+    //return false if square is not attacked by enemy pieces
     return false;
   };
+
   // from: from what square was was bitscan performed
   // moveMask: from square movemask for one direction
   // occupied: bitboard with information about occupied squares
   // return: square index containing blocking piece
   function bitScanForward(from: number, moveMask: Long, occupied: Long) {
-    const moveMaskWithoutFromSquare = moveMask.and(Long.UONE.shiftLeft(from).not());
+    const moveMaskWithoutFromSquare = moveMask.and(
+      Long.UONE.shiftLeft(from).not()
+    );
     const blockedSquares = moveMaskWithoutFromSquare.and(occupied);
     const blockerIndex = blockedSquares.countTrailingZeros();
     if (blockerIndex === 64) return -1;
@@ -555,7 +630,9 @@ const useMove = () => {
   // occupied: bitboard with information about occupied squares
   // return: square index containing blocking piece
   function bitScanBackwards(from: number, moveMask: Long, occupied: Long) {
-    const moveMaskWithoutFromSquare = moveMask.and(Long.UONE.shiftLeft(from).not());
+    const moveMaskWithoutFromSquare = moveMask.and(
+      Long.UONE.shiftLeft(from).not()
+    );
     const blockedSquares = moveMaskWithoutFromSquare.and(occupied);
     const blockerIndex = 63 - blockedSquares.countLeadingZeros();
     if (blockerIndex === -1) return -1;
@@ -576,7 +653,7 @@ const useMove = () => {
       ? maskBetween.xor(Long.UONE.shl(blockingPieceIndex))
       : maskBetween;
   }
-  
+
   function removeBlockedMovesBackwards(
     from: number,
     moveMask: Long,
@@ -627,6 +704,7 @@ const useMove = () => {
     const enemyColor = color === 'w' ? 0 : 1;
     const kingPosition = state[11 - colorHelper] as Long;
     const kingSquare = kingPosition.countTrailingZeros();
+    if (kingSquare === 64) return Long.UZERO;
     const eRook = state[3 - enemyColor] as Long;
     const eBishop = state[5 - enemyColor] as Long;
     const eQueen = state[9 - enemyColor] as Long;
@@ -822,7 +900,8 @@ const useMove = () => {
     setElPassant,
     elPassant,
     pinned,
-    checked,
+    isChecked,
+    doubleChecked,
     kingLegalMoves,
     mate,
     setMate,
@@ -833,6 +912,10 @@ const useMove = () => {
     bitScanBackwards,
     removeBlockedMovesBackwards,
     removeBlockedMovesForward,
+    squareIsAttacked,
+    kingMoveMaskThatIsNotAttacked,
+    turn,
+    setTurn,
   };
 };
 export default useMove;

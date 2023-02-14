@@ -33,7 +33,7 @@ const Chessboard = () => {
     moves,
     turn,
     isMate,
-    checkingRays
+    checkingRays,
   } = useChess();
   const [optionSquares, setOptionSquares] = useState({});
   //@ts-ignore: next-line
@@ -107,7 +107,7 @@ const Chessboard = () => {
           boxShadow: '0 2px 10px rgba(0, 0, 0, 0.5)',
         }}
       />
-      {(!isMate &&isCheck) && <CheckBanner turn={turn} />}
+      {!isMate && isCheck() && <CheckBanner turn={turn} />}
       {isMate && <MateBanner turn={turn} />}
       <button
         style={buttonStyle}
@@ -120,37 +120,55 @@ const Chessboard = () => {
       </button>
       <button
         style={buttonStyle}
-        onClick={() => loadFEN('rnbqkbnr/pppp2pp/8/8/4Bp2/8/PPPPQ3/RNB1K1NR w KQkq d6 0 3')}
+        onClick={() =>
+          loadFEN('rnbqkbnr/ppp3pp/8/3p4/4Bp2/4Q3/PPPP4/RNB1K1NR w KQkq d6 0 4')
+        }
       >
         loadFen
       </button>
       <button
         style={buttonStyle}
-        onClick={() =>loadFEN('knBq1bnB/Q3pppp/1rp4K/2bN4/2B3R1/N3p2N/PPPPPPPR/BNBQ1BNB w - - 0 1')}
+        onClick={() =>
+          loadFEN(
+            'knBq1bnB/Q3pppp/1rp4K/2bN4/2B3R1/N3p2N/PPPPPPPR/BNBQ1BNB w - - 0 1'
+          )
+        }
       >
         loadFen
       </button>
       <button
         style={buttonStyle}
-        onClick={() =>loadFEN( '3r4/1b3b2/2pp4/rP1b3q/4R3/1b1P4/6b1/3q4 w KQkq d6 0 3')}
+        onClick={() =>
+          loadFEN('3r4/1b3b2/2pp4/rP1b3q/4R3/1b1P4/6b1/3q4 w KQkq d6 0 3')
+        }
       >
         loadFen
       </button>
       <button
         style={buttonStyle}
-        onClick={() => loadFEN( 'rQq1Qpnr/pp4Bp/1p1bbb2/Q1Pbkb1R/3bbb2/8/PP2PPPB/QN1QKPNR w KQkq d6 0 3')}
+        onClick={() =>
+          loadFEN(
+            'rQq1Qpnr/pp4Bp/1p1bbb2/Q1Pbkb1R/3bbb2/8/PP2PPPB/QN1QKPNR w KQkq d6 0 3'
+          )
+        }
       >
         loadFen
       </button>
       <button
         style={buttonStyle}
-        onClick={() =>loadFEN( 'rQq3nr/pp2p1Bp/1p1b1b2/P3k3/3b1b2/8/PP2PPPB/QN1QKPNR w KQkq d6 0 3')}
+        onClick={() =>
+          loadFEN(
+            'rQq3nr/pp2p1Bp/1p1b1b2/P3k3/3b1b2/8/PP2PPPB/QN1QKPNR w KQkq d6 0 3'
+          )
+        }
       >
         loadFen
       </button>
       <button
         style={buttonStyle}
-        onClick={() => loadFEN('rnbqkbnr/p1p1pppp/1p6/2Pp4/8/8/PP1P4/RNBQKBNR w KQkq d6 0 3')}
+        onClick={() =>
+          loadFEN('rnbqkbnr/p1p1pppp/1p6/2Pp4/8/8/PP1P4/RNBQKBNR w KQkq d6 0 3')
+        }
       >
         loadFen
       </button>
@@ -162,18 +180,15 @@ const Chessboard = () => {
       </button>
       <button
         style={buttonStyle}
-        onClick={() =>loadFEN( '8/8/8/8/2K5/2B5/8/2r4k w KQkq d6 0 3')}
+        onClick={() => loadFEN('8/8/8/8/2K5/2B5/8/2r4k w KQkq d6 0 3')}
       >
         loadFen
       </button>
-
     </div>
   );
 };
-const CheckBanner = ({turn}: {turn: Color}) => {
-  const beingChecked = turn ==='b'
-    ?'Black'
-    :'White';
+const CheckBanner = ({ turn }: { turn: Color }) => {
+  const beingChecked = turn === 'b' ? 'Black' : 'White';
 
   return (
     <div>
@@ -181,10 +196,8 @@ const CheckBanner = ({turn}: {turn: Color}) => {
     </div>
   );
 };
-const MateBanner = ({turn}: { turn: Color}) => {
-  const beingChecked = turn ==='b'
-    ?'Black'
-    :'White';
+const MateBanner = ({ turn }: { turn: Color }) => {
+  const beingChecked = turn === 'b' ? 'Black' : 'White';
 
   return (
     <div>

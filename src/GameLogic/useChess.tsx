@@ -21,12 +21,13 @@ const useChess = () => {
     checkingRays,
     knightPseudoMoves,
     kingLegalMoves,
-    checked,
+    isChecked,
     elPassant,
     setElPassant,
     mate,
+    turn,
+    setTurn,
   } = useMove();
-  const [turn, setTurn] = useState<'w' | 'b'>('w');
   //checks if castling is possible '' means not possible
   const [castling, setCastling] = useState('KQkq');
   // can be used to set tie if reaches to 50
@@ -68,7 +69,7 @@ const useChess = () => {
     ),
     whiteOccupiedBits = occupiedBits.xor(blackOccupiedBits),
   }: Imove): Long => {
-    if(mate) return Long.UZERO;
+    if (mate) return Long.UZERO;
     switch (piece) {
       case 0: {
         const legalMoves = pawnLegalMoves({
@@ -143,7 +144,7 @@ const useChess = () => {
           fromBitIndex,
           occupiedBits,
           teammateOccupiedBits: whiteOccupiedBits,
-          color
+          color,
         });
         return diagonalLegalMoves.or(RlegalMoves);
       }
@@ -164,12 +165,24 @@ const useChess = () => {
         return diagonalLegalMoves.or(RlegalMoves);
       }
       case 10: {
-        const legalMoves = kingLegalMoves({fromBitIndex, occupiedBits, enemyOccupied:blackOccupiedBits});
+        const legalMoves = kingLegalMoves({
+          fromBitIndex,
+          occupiedBits,
+          enemyOccupied: blackOccupiedBits,
+          teammateOccupied: whiteOccupiedBits,
+          color,
+        });
         // TODO add here also defended squares filter
         return legalMoves;
       }
       case 11: {
-        const legalMoves = kingLegalMoves({fromBitIndex, occupiedBits, enemyOccupied:whiteOccupiedBits});
+        const legalMoves = kingLegalMoves({
+          fromBitIndex,
+          occupiedBits,
+          enemyOccupied: whiteOccupiedBits,
+          teammateOccupied: blackOccupiedBits,
+          color,
+        });
         // TODO add here also defended squares filter
         return legalMoves;
       }
@@ -207,13 +220,13 @@ const useChess = () => {
 
     //final state changes
     let modifiedGameState = gameState;
-    const newTurn = turn === 'b'? 'w':'b';
+    const newTurn = turn === 'b' ? 'w' : 'b';
     if (deletedPieces) {
       modifiedGameState[deletedPieces.i] = deletedPieces.pieces;
     }
     modifiedGameState[piece] = moveBoard;
 
-    changeGameState(modifiedGameState, newTurn );
+    changeGameState(modifiedGameState);
     //set if pawn moved or piece captured to 0 otherwise increment
     if (piece === 1 || piece === 0 || deletedPieces) {
       setHalfMove(0);
@@ -454,8 +467,8 @@ const useChess = () => {
     fullMove,
     turn,
     updateGameState,
-    isCheck:checked,
-    isMate:mate,
+    isCheck: isChecked,
+    isMate: mate,
     checkingRays,
   };
 };
