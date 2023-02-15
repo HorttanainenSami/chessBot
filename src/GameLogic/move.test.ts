@@ -1,7 +1,7 @@
-import { logger } from '../../frontend/src/GameLogic/helpers';
+import { logger } from './helpers';
 import Long from 'long';
 import { Color } from '../../frontend/src/Types';
-import * as moveMasks from '../../frontend/src/GameLogic/preCalculatedMoveMasks';
+import * as moveMasks from '../preCalculatedMoveMasks';
 import {
   kingPseudoMoves,
   bishopLegalMoves,

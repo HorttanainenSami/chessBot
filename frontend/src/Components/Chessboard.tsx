@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { Chessboard as Cb } from 'react-chessboard';
-import { makeMove } from '../bot/moves';
 import useChess, { IMoves } from '../GameLogic/useChess';
 import { logger, bitPieces, getBitPiece } from '../GameLogic/helpers';
 import Long from 'long';
