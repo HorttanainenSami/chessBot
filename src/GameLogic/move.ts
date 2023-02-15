@@ -152,92 +152,6 @@ const knightPseudoMoves = ({ fromBitIndex }: { fromBitIndex: number }) => {
   const legalMoves = moveMasks.getKnightMoves(fromBitIndex);
   return checked ? legalMoves.and(checkingRays) : legalMoves;
 };
-function isMate() {}
-function isCheck() {
-  const blackOccupiedBits = gameState.reduce(
-    (acc, curr, i) => (i % 2 === 0 ? acc : acc.or(curr)),
-    Long.UZERO
-  );
-  const occupiedBits = gameState.reduce(
-    (acc, curr) => acc.or(curr),
-    Long.UZERO
-  );
-  const teammateOccupiedBits =
-    turn === 'b' ? blackOccupiedBits : occupiedBits.xor(blackOccupiedBits);
-
-  const kingPosition =
-    turn === 'b' ? (gameState[11] as Long) : (gameState[10] as Long);
-
-  const fromBitIndex = kingPosition.countTrailingZeros();
-  if (fromBitIndex === 64) return;
-  const kingSquareIsAttacked = squareIsAttacked({
-    occupiedBits,
-    fromBitIndex,
-    friendlyColor: turn,
-  });
-  if (kingSquareIsAttacked) {
-    checked = true;
-    const { rays, numOfChecks } = kingIsAttackedFrom({
-      occupiedBits,
-      fromBitIndex,
-      teammateOccupiedBits,
-      color: turn,
-    });
-    checkingRays = rays;
-    console.log('numOfChecks', numOfChecks);
-
-    if (numOfChecks > 1) {
-      console.log('doubleChecked ', numOfChecks);
-
-      doubleChecked = true;
-      const filteredkMoves = kingLegalMoves({
-        fromBitIndex,
-        occupiedBits,
-        enemyOccupied: occupiedBits.xor(teammateOccupiedBits),
-        teammateOccupied: teammateOccupiedBits,
-        color: turn,
-      }).and(rays.not());
-
-      if (filteredkMoves.isZero()) {
-        mate = true;
-      }
-    } else {
-      doubleChecked = false;
-    }
-  } else {
-    checked = false;
-    checkingRays = Long.UZERO;
-    doubleChecked = false;
-  }
-}
-const setFEN = (
-  state: Long[],
-  elpassantP: SquareBit | null,
-  castlingP: string,
-  halfMoveP: number,
-  fullMoveP: number,
-  color?: Color
-) => {
-  elPassant = elpassantP;
-  castling = castlingP;
-  halfMove = halfMoveP;
-  fullMove = fullMoveP;
-  changeGameState(state, color);
-};
-const changeGameState = (state: Long[], toColor?: Color) => {
-  //if color is given as parameter or get next players color
-  gameState = state;
-  const color = toColor ? toColor : turn === 'w' ? 'b' : 'w';
-  turn = color;
-  calculatePinned(color);
-  isCheck();
-};
-interface IbishopLegalMoves {
-  occupiedBits: Long;
-  fromBitIndex: number;
-  teammateOccupiedBits: Long;
-  color: Color;
-}
 //returns bishops all current legal moves
 //legal moves includes moves that contain enemy piece to attack and move to empty square
 const bishopLegalMoves = ({
@@ -507,6 +421,93 @@ const pawnLegalAttacks = ({
   const pseudoAttacks = pawnPseudoAttacks({ fromBitIndex, color });
   return pseudoAttacks.and(includingElPassant.or(enemyOccupied));
 };
+function isMate() {}
+function isCheck() {
+  const blackOccupiedBits = gameState.reduce(
+    (acc, curr, i) => (i % 2 === 0 ? acc : acc.or(curr)),
+    Long.UZERO
+  );
+  const occupiedBits = gameState.reduce(
+    (acc, curr) => acc.or(curr),
+    Long.UZERO
+  );
+  const teammateOccupiedBits =
+    turn === 'b' ? blackOccupiedBits : occupiedBits.xor(blackOccupiedBits);
+
+  const kingPosition =
+    turn === 'b' ? (gameState[11] as Long) : (gameState[10] as Long);
+
+  const fromBitIndex = kingPosition.countTrailingZeros();
+  if (fromBitIndex === 64) return;
+  const kingSquareIsAttacked = squareIsAttacked({
+    occupiedBits,
+    fromBitIndex,
+    friendlyColor: turn,
+  });
+  if (kingSquareIsAttacked) {
+    checked = true;
+    const { rays, numOfChecks } = kingIsAttackedFrom({
+      occupiedBits,
+      fromBitIndex,
+      teammateOccupiedBits,
+      color: turn,
+    });
+    checkingRays = rays;
+    console.log('numOfChecks', numOfChecks);
+
+    if (numOfChecks > 1) {
+      console.log('doubleChecked ', numOfChecks);
+
+      doubleChecked = true;
+      const filteredkMoves = kingLegalMoves({
+        fromBitIndex,
+        occupiedBits,
+        enemyOccupied: occupiedBits.xor(teammateOccupiedBits),
+        teammateOccupied: teammateOccupiedBits,
+        color: turn,
+      }).and(rays.not());
+
+      if (filteredkMoves.isZero()) {
+        mate = true;
+      }
+    } else {
+      doubleChecked = false;
+    }
+  } else {
+    checked = false;
+    checkingRays = Long.UZERO;
+    doubleChecked = false;
+  }
+}
+const setFEN = (
+  state: Long[],
+  elpassantP: SquareBit | null,
+  castlingP: string,
+  halfMoveP: number,
+  fullMoveP: number,
+  color?: Color
+) => {
+  elPassant = elpassantP;
+  castling = castlingP;
+  halfMove = halfMoveP;
+  fullMove = fullMoveP;
+  changeGameState(state, color);
+};
+const changeGameState = (state: Long[], toColor?: Color) => {
+  //if color is given as parameter or get next players color
+  gameState = state;
+  const color = toColor ? toColor : turn === 'w' ? 'b' : 'w';
+  turn = color;
+  calculatePinned(color);
+  isCheck();
+};
+interface IbishopLegalMoves {
+  occupiedBits: Long;
+  fromBitIndex: number;
+  teammateOccupiedBits: Long;
+  color: Color;
+}
+
 // can be used for checking if king is attacked
 const kingIsAttackedFrom = ({
   occupiedBits,
