@@ -3,18 +3,23 @@ import { Piece } from '../Types';
 
 //help to log bitboard in console effeciently
 export const logger = (l: Long, text?: string) => {
-  if(text){
-    return(console.log(`${text}\n${l.toString(2).padStart(64, '0').match(/.{1,8}/g)?.join('\n')}`));
+  if (text) {
+    return console.log(
+      `${text}\n${l
+        .toString(2)
+        .padStart(64, '0')
+        .match(/.{1,8}/g)
+        ?.join('\n')}`
+    );
   }
-  return(console.log(
+  return console.log(
     l
       .toString(2)
       .padStart(64, '0')
       .match(/.{1,8}/g)
       ?.join('\n')
-  ));
+  );
 };
-  
 
 export function isNumeric(expectedValue: any) {
   if (
@@ -139,4 +144,3 @@ export enum SquareBit {
   'b8',
   'a8',
 }
-
