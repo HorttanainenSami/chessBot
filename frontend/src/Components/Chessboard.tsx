@@ -24,16 +24,14 @@ const boardWrapper = {
 
 const Chessboard = () => {
   const {
-    makeMove: chessMove,
     loadFEN,
-    clearBoard,
-    gameState,
-    isCheck,
-    getFEN,
+    getFen,
     moves,
-    turn,
+    isCheck,
     isMate,
-    checkingRays,
+    turn,
+    makeMove: chessMove,
+    clearBoard,
   } = useChess();
   const [optionSquares, setOptionSquares] = useState({});
   //@ts-ignore: next-line
@@ -44,15 +42,15 @@ const Chessboard = () => {
   ): boolean {
     //convert piece to enum that reprecents pieces
     const bitPiece = getBitPiece(piece);
-    const move = chessMove({
+    const result = chessMove({
       from: sourceSquare,
       to: targetSquare,
       piece: bitPiece,
       promotion: 'q',
       color: piece.charAt(0) as Color,
     });
-
-    return move;
+    console.log('onDrop ', result);
+    return result;
   }
   function getMoveOptions(move: IMoves) {
     const legalMoves = moves(move);
@@ -91,13 +89,12 @@ const Chessboard = () => {
       color: piece.charAt(0) as Color,
     });
   };
-
   return (
     <div style={boardWrapper}>
-      <div>{getFEN()}</div>
+      <div>{getFen}</div>
       <Cb
         id='PlayVsRandom'
-        position={getFEN()}
+        position={getFen}
         onPieceDrop={onDrop}
         onPieceDragBegin={showMoves}
         onPieceDragEnd={() => setOptionSquares([])}
@@ -107,7 +104,7 @@ const Chessboard = () => {
           boxShadow: '0 2px 10px rgba(0, 0, 0, 0.5)',
         }}
       />
-      {!isMate && isCheck() && <CheckBanner turn={turn} />}
+      {!isMate && isCheck && <CheckBanner turn={turn} />}
       {isMate && <MateBanner turn={turn} />}
       <button
         style={buttonStyle}
@@ -117,6 +114,12 @@ const Chessboard = () => {
         }}
       >
         clear
+      </button>
+      <button
+        style={buttonStyle}
+        onClick={() => loadFEN('8/8/8/pppppppp/PPPPPPPP/8/8/8 w KQkq - 0 4')}
+      >
+        loadpawnEat
       </button>
       <button
         style={buttonStyle}
@@ -130,7 +133,7 @@ const Chessboard = () => {
         style={buttonStyle}
         onClick={() =>
           loadFEN(
-            'knBq1bnB/Q3pppp/1rp4K/2bN4/2B3R1/N3p2N/PPPPPPPR/BNBQ1BNB w - - 0 1'
+            'knBq1bnB/Q3pppp/1rp4K/2bN4/2B3R1/N3p2N/PPPPPPPR/BNBQ1BNB w KQkq - 0 1'
           )
         }
       >

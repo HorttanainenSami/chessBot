@@ -1,5 +1,5 @@
 import Long from 'long';
-import { logger } from './helpers';
+import { logger } from './GameLogic/helpers';
 
 export function initializePreCalculatedMoves() {
   declareBisopMoves();

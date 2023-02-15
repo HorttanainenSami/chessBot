@@ -1,15 +1,8 @@
-/**
- * @jest-environment jsdom
- */
-import useMove from './useMove';
-
-import { logger } from './helpers';
-import { renderHook, act } from '@testing-library/react';
+import { logger } from '../../frontend/src/GameLogic/helpers';
 import Long from 'long';
-import { Color } from '../Types';
-import moveMasks from './preCalculatedMoveMasks';
-const { result } = renderHook(() => useMove());
-const {
+import { Color } from '../../frontend/src/Types';
+import * as moveMasks from '../../frontend/src/GameLogic/preCalculatedMoveMasks';
+import {
   kingPseudoMoves,
   bishopLegalMoves,
   bishopAttacks,
@@ -25,7 +18,17 @@ const {
   bitScanForward,
   removeBlockedMovesBackwards,
   removeBlockedMovesForward,
-} = result.current;
+  changeGameState,
+  gameState,
+  checked,
+  mate,
+  doubleChecked,
+  turn,
+  setElpassant,
+  squareIsAttacked,
+  kingMoveMaskThatIsNotAttacked,
+  reset,
+} from './move';
 const emptyBoardState: Long[] = [
   Long.UZERO,
   Long.UZERO,
@@ -42,7 +45,10 @@ const emptyBoardState: Long[] = [
   Long.UZERO,
   Long.UZERO,
 ];
-
+moveMasks.initializePreCalculatedMoves();
+beforeEach(() => {
+  reset();
+});
 //**********************************KNIGHT*****************************************
 describe('knightPseudoMoves', () => {
   it('should return the correct pseudo moves for a knight', () => {
@@ -76,14 +82,14 @@ describe('knightPseudoMoves', () => {
 });
 //**********************************BISHOP*****************************************
 describe('bishopLegalAttacks', () => {
-  it('should return all possible moves for bishop on D4 when board is empty', () => {
+  it('should return all possible moves for bishop on D4 when mask contains one blocker', () => {
     const fromBitIndex = 35;
     const occupiedBits = Long.fromString('0x810000000', true, 16);
     const expectedMoves = Long.fromString('0x4122140014020100', true, 16);
     const result = bishopAttacks({ fromBitIndex, occupiedBits });
     expect(result).toEqual(expectedMoves);
   });
-  it('should return all possible moves for bishop on D4 when mask contains one blocker ', () => {
+  it('should return all possible moves for bishop on D4 when board is empty ', () => {
     const fromBitIndex = 35;
     const occupiedBits = Long.fromString('0x800000000', true, 16);
     const expectedMoves = Long.fromString('0x4122140014224180', true, 16);
@@ -177,7 +183,6 @@ describe('bishopLegalMoves', () => {
 
 describe('check if bishop is absolutely pinned', () => {
   it('should return zero possible moves for white bishop when its being absolutely pinned from south with rook', () => {
-    const s = renderHook(() => useMove());
     const startState: Long[] = [...emptyBoardState];
     //setup king
     startState[10] = Long.fromString('0x2000000000', true, 16);
@@ -187,9 +192,7 @@ describe('check if bishop is absolutely pinned', () => {
     startState[3] = Long.fromString('0x20', true, 16);
 
     const color: Color = 'w';
-    act(() => {
-      s.result.current.changeGameState(startState, color);
-    });
+    changeGameState(startState, color);
 
     const fromBitIndex = 21;
     const occupiedBits = Long.fromString('0x2000200020', true, 16);
@@ -201,10 +204,9 @@ describe('check if bishop is absolutely pinned', () => {
       teammateOccupiedBits,
       color,
     };
-    expect(s.result.current.bishopLegalMoves(params)).toEqual(expectedMoves);
+    expect(bishopLegalMoves(params)).toEqual(expectedMoves);
   });
   it('should return zero possible moves for white bishop when its being absolutely pinned from west with rook', () => {
-    const s = renderHook(() => useMove());
     const startState: Long[] = [...emptyBoardState];
     //setup king
     startState[10] = Long.fromString('0x200000000', true, 16);
@@ -214,16 +216,14 @@ describe('check if bishop is absolutely pinned', () => {
     startState[3] = Long.fromString('0x2000000000', true, 16);
 
     const color: Color = 'w';
-    act(() => {
-      s.result.current.changeGameState(startState, color);
-    });
+    changeGameState(startState, color);
 
     const fromBitIndex = 35;
     const occupiedBits = Long.fromString('0x2a00000000', true, 16);
     const teammateOccupiedBits = Long.fromString('0xa00000000', true, 16);
     const expectedMoves = Long.fromString('0x0', true, 16);
 
-    const r = s.result.current.bishopLegalMoves({
+    const r = bishopLegalMoves({
       occupiedBits,
       fromBitIndex,
       teammateOccupiedBits,
@@ -232,7 +232,6 @@ describe('check if bishop is absolutely pinned', () => {
     expect(r).toEqual(expectedMoves);
   });
   it('should return zero possible moves for white bishop when its being absolutely pinned from east with Queen', () => {
-    const s = renderHook(() => useMove());
     const startState: Long[] = [...emptyBoardState];
     //setup king
     startState[10] = Long.fromString('0x2000000000', true, 16);
@@ -242,9 +241,7 @@ describe('check if bishop is absolutely pinned', () => {
     startState[9] = Long.fromString('0x200000000', true, 16);
 
     const color: Color = 'w';
-    act(() => {
-      s.result.current.changeGameState(startState, color);
-    });
+    changeGameState(startState, color);
 
     const fromBitIndex = 35;
     const occupiedBits = Long.fromString('0x2a00000000', true, 16);
@@ -256,7 +253,7 @@ describe('check if bishop is absolutely pinned', () => {
       teammateOccupiedBits,
       color,
     };
-    expect(s.result.current.bishopLegalMoves(params)).toEqual(expectedMoves);
+    expect(bishopLegalMoves(params)).toEqual(expectedMoves);
   });
 });
 
@@ -282,8 +279,7 @@ describe('kingPseudoMoves', () => {
   });
 });
 describe('isCheck', () => {
-  it('should make check if one enemy queen is attacking king', () => {
-    const s = renderHook(() => useMove());
+  it('should not make check if one enemy queen is not attacking king', () => {
     const startState: Long[] = [...emptyBoardState];
     //setup king white
     startState[10] = Long.fromString('0x20000000000', true, 16); //28
@@ -292,20 +288,17 @@ describe('isCheck', () => {
 
     const friendlyColor: Color = 'w';
 
-    act(() => {
-      s.result.current.changeGameState(startState, friendlyColor);
-    });
-    s.result.current.gameState.forEach((r, i) => logger(r, i.toString()));
-    const result = s.result.current.isChecked();
-    const doubleCheck = s.result.current.doubleChecked;
-    const mate = s.result.current.mate;
+    changeGameState(startState, friendlyColor);
+    gameState.forEach((r, i) => logger(r, i.toString()));
+    const result = checked;
+    const doubleCheck = doubleChecked;
 
     expect(result).toEqual(false);
     expect(doubleCheck).toEqual(false);
     expect(mate).toEqual(false);
   });
+
   it('should make check if one enemy knight is attacking king', () => {
-    const s = renderHook(() => useMove());
     const startState: Long[] = [...emptyBoardState];
     //setup king white
     startState[10] = Long.fromString('0x20000000000', true, 16); //28
@@ -314,17 +307,32 @@ describe('isCheck', () => {
 
     const friendlyColor: Color = 'w';
 
-    act(() => s.result.current.changeGameState(startState, friendlyColor));
-    const result = s.result.current.isChecked();
-    const doubleCheck = s.result.current.doubleChecked;
-    const mate = s.result.current.mate;
+    changeGameState(startState, friendlyColor);
+    const result = checked;
+    const doubleCheck = doubleChecked;
 
     expect(result).toEqual(true);
     expect(doubleCheck).toEqual(false);
     expect(mate).toEqual(false);
   });
-  it('should make dobuleCheck if one enemy knight and queen is attacking king', () => {
-    const s = renderHook(() => useMove());
+
+  it('should make doubleCheck if one enemy knight and queen is attacking king', () => {
+    const startState: Long[] = [...emptyBoardState];
+    //setup king white
+    startState[10] = Long.fromString('0x20000000000', true, 16); //28
+    //setup Queen black
+    startState[9] = Long.fromString('0x8000000', true, 16); //21
+
+    const friendlyColor: Color = 'w';
+
+    changeGameState(startState, friendlyColor);
+    expect(turn).toEqual(friendlyColor);
+    expect(checked).toEqual(true);
+    expect(doubleChecked).toEqual(false);
+    expect(mate).toEqual(false);
+  });
+
+  it('should make doubleCheck if one enemy knight and queen is attacking king', () => {
     const startState: Long[] = [...emptyBoardState];
     //setup king white
     startState[10] = Long.fromString('0x20000000000', true, 16); //28
@@ -335,13 +343,61 @@ describe('isCheck', () => {
 
     const friendlyColor: Color = 'w';
 
-    act(() => s.result.current.changeGameState(startState, friendlyColor));
-    const result = s.result.current.isChecked();
-    const doubleCheck = s.result.current.doubleChecked;
-    const mate = s.result.current.mate;
+    changeGameState(startState, friendlyColor);
 
-    expect(result).toEqual(true);
-    expect(doubleCheck).toEqual(true);
+    expect(checked).toEqual(true);
+    expect(doubleChecked).toEqual(true);
+    expect(mate).toEqual(false);
+  });
+  it('should make doubleCheck if one enemy bishop and queen is attacking king', () => {
+    const startState: Long[] = [...emptyBoardState];
+    //setup king white
+    startState[10] = Long.fromString('0x20000000000', true, 16); //28
+    //setup bishop black
+    startState[5] = Long.fromString('800000000000000', true, 16); //21
+    //setup Queen black
+    startState[9] = Long.fromString('0x8000000', true, 16); //21
+
+    const friendlyColor: Color = 'w';
+
+    changeGameState(startState, friendlyColor);
+
+    expect(checked).toEqual(true);
+    expect(doubleChecked).toEqual(true);
+    expect(mate).toEqual(false);
+  });
+  it('should not be DobuleCheck if one enemy bishop behind queen witch is attacking king', () => {
+    const startState: Long[] = [...emptyBoardState];
+    //setup king white
+    startState[10] = Long.fromString('0x20000000000', true, 16); //28
+    //setup bishop black
+    startState[5] = Long.fromString('2000', true, 16); //21
+    //setup Queen black
+    startState[9] = Long.fromString('0x8000000', true, 16); //21
+
+    const friendlyColor: Color = 'w';
+
+    changeGameState(startState, friendlyColor);
+
+    expect(checked).toEqual(true);
+    expect(doubleChecked).toEqual(false);
+    expect(mate).toEqual(false);
+  });
+  it('should make doubleCheck if one enemy bishop and queen is attacking king', () => {
+    const startState: Long[] = [...emptyBoardState];
+    //setup king white
+    startState[10] = Long.fromString('0x20000000000', true, 16); //28
+    //setup bishop black
+    startState[5] = Long.fromString('800000000000000', true, 16); //21
+    //setup Queen black
+    startState[9] = Long.fromString('20000', true, 16); //21
+
+    const friendlyColor: Color = 'w';
+
+    changeGameState(startState, friendlyColor);
+
+    expect(checked).toEqual(true);
+    expect(doubleChecked).toEqual(true);
     expect(mate).toEqual(false);
   });
 });
@@ -349,7 +405,7 @@ describe('isCheck', () => {
 //**********************************ROOK*****************************************
 
 describe('RookLegalMoves', () => {
-  it('should return all possible moves for rook on D4, empty', () => {
+  it('should return all possible moves for rook on D4, full of teammates', () => {
     const color: Color = 'b';
     const fromBitIndex = 28;
     const occupiedBits = Long.fromString('0x10101010ff101010', true, 16);
@@ -368,16 +424,12 @@ describe('RookLegalMoves', () => {
 
     expect(rookLegalMoves(params)).toEqual(expectedMoves);
   });
-  it('should return all possible moves for rook on D4, full of teammates', () => {
+  it('should return all possible moves for rook on D4, full of enemies', () => {
     const fromBitIndex = 28;
     const color: Color = 'b';
     const occupiedBits = Long.fromString('0xffffffffffffffff', true, 16);
-    const expectedMoves = Long.fromString('0x0', true, 16);
-    const teammateOccupiedBits = Long.fromString(
-      '0x10101010ff101010',
-      true,
-      16
-    );
+    const expectedMoves = Long.fromString('1028100000', true, 16);
+    const teammateOccupiedBits = Long.fromString('10000000', true, 16);
     const params = {
       occupiedBits,
       teammateOccupiedBits,
@@ -390,12 +442,12 @@ describe('RookLegalMoves', () => {
     );
   });
 
-  it('should return all possible moves for rook on D4, full of enemies', () => {
+  it('should return all possible moves for rook on D4, empty', () => {
     const fromBitIndex = 28;
     const color: Color = 'b';
-    const occupiedBits = Long.fromString('0xffffffffffffffff', true, 16);
-    const expectedMoves = Long.fromString('0x1028100000', true, 16);
-    const teammateOccupiedBits = Long.fromString('0x10000000', true, 16);
+    const occupiedBits = Long.fromString('10000000', true, 16);
+    const expectedMoves = Long.fromString('10101010ef101010', true, 16);
+    const teammateOccupiedBits = Long.fromString('10000000', true, 16);
     const params = {
       occupiedBits,
       teammateOccupiedBits,
@@ -403,6 +455,8 @@ describe('RookLegalMoves', () => {
       color,
     };
     const r = rookLegalMoves(params);
+    logger(r);
+    logger(expectedMoves);
     expect(r).toEqual(expectedMoves);
   });
   it('should return all possible moves for rook on D4, some filled', () => {
@@ -473,7 +527,6 @@ describe('RookLegalAttacks', () => {
 });
 describe('check if rook is absolutely pinned', () => {
   it('should return zero possible moves for white rook when its being absolutely pinned from southW with bishop', () => {
-    const s = renderHook(() => useMove());
     const startState: Long[] = [...emptyBoardState];
     //setup king
     startState[10] = Long.fromString('0x800000000', true, 16);
@@ -483,9 +536,7 @@ describe('check if rook is absolutely pinned', () => {
     startState[5] = Long.fromString('0x200000', true, 16);
 
     const color: Color = 'w';
-    act(() => {
-      s.result.current.changeGameState(startState, color);
-    });
+    changeGameState(startState, color);
 
     const fromBitIndex = 28;
     const occupiedBits = Long.fromString('0x810200000', true, 16);
@@ -493,7 +544,7 @@ describe('check if rook is absolutely pinned', () => {
     const expectedMoves = Long.fromString('0x0', true, 16);
 
     expect(
-      s.result.current.rookLegalMoves({
+      rookLegalMoves({
         occupiedBits,
         fromBitIndex,
         teammateOccupiedBits,
@@ -502,7 +553,6 @@ describe('check if rook is absolutely pinned', () => {
     ).toEqual(expectedMoves);
   });
   it('should return zero possible moves for white rook when its being absolutely pinned from Southeast with bishop', () => {
-    const s = renderHook(() => useMove());
     const startState: Long[] = [...emptyBoardState];
     //setup king
     startState[10] = Long.fromString('0x2000000000', true, 16);
@@ -512,15 +562,13 @@ describe('check if rook is absolutely pinned', () => {
     startState[5] = Long.fromString('0x80000', true, 16);
 
     const color: Color = 'w';
-    act(() => {
-      s.result.current.changeGameState(startState, color);
-    });
+    changeGameState(startState, color);
 
     const fromBitIndex = 28;
     const occupiedBits = Long.fromString('0x2010080000', true, 16);
     const teammateOccupiedBits = Long.fromString('0x2010000000', true, 16);
     const expectedMoves = Long.fromString('0x0', true, 16);
-    const r = s.result.current.rookLegalMoves({
+    const r = rookLegalMoves({
       occupiedBits,
       fromBitIndex,
       teammateOccupiedBits,
@@ -529,7 +577,6 @@ describe('check if rook is absolutely pinned', () => {
     expect(r).toEqual(expectedMoves);
   });
   it('should return zero possible moves for white rook when its being absolutely pinned from NorthEast with Queen', () => {
-    const s = renderHook(() => useMove());
     const startState: Long[] = [...emptyBoardState];
     //setup king
     startState[10] = Long.fromString('0x80000', true, 16);
@@ -539,15 +586,13 @@ describe('check if rook is absolutely pinned', () => {
     startState[9] = Long.fromString('0x2000000000', true, 16);
 
     const color: Color = 'w';
-    act(() => {
-      s.result.current.changeGameState(startState, color);
-    });
+    changeGameState(startState, color);
 
     const fromBitIndex = 28;
     const occupiedBits = Long.fromString('0x2010080000', true, 16);
     const teammateOccupiedBits = Long.fromString('0x10080000', true, 16);
     const expectedMoves = Long.fromString('0x0', true, 16);
-    const r = s.result.current.rookLegalMoves({
+    const r = rookLegalMoves({
       occupiedBits,
       fromBitIndex,
       teammateOccupiedBits,
@@ -556,7 +601,6 @@ describe('check if rook is absolutely pinned', () => {
     expect(r).toEqual(expectedMoves);
   });
   it('should return zero possible moves for white rook when its being absolutely pinned from NWest with Queen', () => {
-    const s = renderHook(() => useMove());
     const startState: Long[] = [...emptyBoardState];
     //setup king
     startState[10] = Long.fromString('0x200000', true, 16);
@@ -566,9 +610,7 @@ describe('check if rook is absolutely pinned', () => {
     startState[9] = Long.fromString('0x800000000', true, 16);
 
     const color: Color = 'w';
-    act(() => {
-      s.result.current.changeGameState(startState, color);
-    });
+    changeGameState(startState, color);
 
     const fromBitIndex = 28;
     const occupiedBits = Long.fromString('0x810200000', true, 16);
@@ -580,7 +622,7 @@ describe('check if rook is absolutely pinned', () => {
       teammateOccupiedBits,
       color,
     };
-    expect(s.result.current.rookLegalMoves(params)).toEqual(expectedMoves);
+    expect(rookLegalMoves(params)).toEqual(expectedMoves);
   });
 });
 
@@ -749,11 +791,7 @@ describe('pawnLegalMoves', () => {
     const enemyOccupied = Long.UZERO;
     const occupiedSquares = Long.fromString('0x20200', true, 16);
     const expected = Long.fromString('0x0', true, 16);
-    const elPassant = null;
-    const s = renderHook(() => useMove());
-    act(() => {
-      s.result.current.setElPassant(elPassant);
-    });
+    setElpassant(null);
 
     expect(
       pawnLegalMoves({
@@ -770,14 +808,10 @@ describe('pawnLegalMoves', () => {
     const enemyOccupied = Long.fromString('0xef001000000000', true, 16);
     const occupiedSquares = Long.fromString('0xef003000000000', true, 16);
     const expected = Long.fromString('0x300000000000', true, 16);
-    const elPassant = 44;
-    const s = renderHook(() => useMove());
-    act(() => {
-      s.result.current.setElPassant(elPassant);
-    });
+    setElpassant(44);
 
     expect(
-      s.result.current.pawnLegalMoves({
+      pawnLegalMoves({
         fromBitIndex,
         color,
         enemyOccupied,
@@ -791,14 +825,10 @@ describe('pawnLegalMoves', () => {
     const enemyOccupied = Long.fromString('0xef001000000000', true, 16);
     const occupiedSquares = Long.fromString('0xef201000000000', true, 16);
     const expected = Long.fromString('0x40000000000000', true, 16);
-    const elPassant = 44;
-    const s = renderHook(() => useMove());
-    act(() => {
-      s.result.current.setElPassant(elPassant);
-    });
+    setElpassant(44);
 
     expect(
-      s.result.current.pawnLegalMoves({
+      pawnLegalMoves({
         fromBitIndex,
         color,
         enemyOccupied,
@@ -812,14 +842,10 @@ describe('pawnLegalMoves', () => {
     const enemyOccupied = Long.fromString('0x1000ef00', true, 16);
     const occupiedSquares = Long.fromString('0x1800ef00', true, 16);
     const expected = Long.fromString('0x180000', true, 16);
-    const elPassant = 20;
-    const s = renderHook(() => useMove());
-    act(() => {
-      s.result.current.setElPassant(elPassant);
-    });
+    setElpassant(20);
 
     expect(
-      s.result.current.pawnLegalMoves({
+      pawnLegalMoves({
         fromBitIndex,
         color,
         enemyOccupied,
@@ -884,17 +910,12 @@ describe('xrayBishopAttacks', () => {
     expect(result).toEqual(expectedAttacks);
   });
   it('should calculate correct xray bishop attacks', () => {
-    const s = renderHook(() => useMove());
     const occupied = Long.fromString('0x8040001', true, 16);
     const blockers = Long.fromString('0x40001', true, 16);
     const square = 0;
 
     const expectedAttacks = Long.fromString('0x8000000', true, 16);
-    const result = s.result.current.xrayBishopAttacks(
-      occupied,
-      blockers,
-      square
-    );
+    const result = xrayBishopAttacks(occupied, blockers, square);
     expect(result).toEqual(expectedAttacks);
   });
 
@@ -1107,7 +1128,6 @@ describe('RemoveBlockedMovesForward', () => {
 
 describe('SquareIsAttacked', () => {
   it('check if queen is attacking some of its rays, ', () => {
-    const s = renderHook(() => useMove());
     const startState: Long[] = [...emptyBoardState];
     //setup king white
     //startState[10] = Long.fromString('0x800000000', true, 16); //21
@@ -1116,7 +1136,7 @@ describe('SquareIsAttacked', () => {
 
     const friendlyColor: Color = 'w';
 
-    act(() => s.result.current.changeGameState(startState, friendlyColor));
+    changeGameState(startState, friendlyColor);
     const occupiedBits = startState.reduce(
       (acc, cur) => cur.or(acc),
       Long.UZERO
@@ -1128,63 +1148,63 @@ describe('SquareIsAttacked', () => {
       return acc.or(curr);
     }, new Long(0, 0, true));
     expect(
-      s.result.current.squareIsAttacked({
+      squareIsAttacked({
         occupiedBits,
         fromBitIndex: 56,
         friendlyColor: friendlyColor,
       })
     ).toEqual(true);
     expect(
-      s.result.current.squareIsAttacked({
+      squareIsAttacked({
         occupiedBits,
         fromBitIndex: 16,
         friendlyColor: friendlyColor,
       })
     ).toEqual(true);
     expect(
-      s.result.current.squareIsAttacked({
+      squareIsAttacked({
         occupiedBits,
         fromBitIndex: 3,
         friendlyColor: friendlyColor,
       })
     ).toEqual(true);
     expect(
-      s.result.current.squareIsAttacked({
+      squareIsAttacked({
         occupiedBits,
         fromBitIndex: 5,
         friendlyColor: friendlyColor,
       })
     ).toEqual(true);
     expect(
-      s.result.current.squareIsAttacked({
+      squareIsAttacked({
         occupiedBits,
         fromBitIndex: 7,
         friendlyColor: friendlyColor,
       })
     ).toEqual(true);
     expect(
-      s.result.current.squareIsAttacked({
+      squareIsAttacked({
         occupiedBits,
         fromBitIndex: 23,
         friendlyColor: friendlyColor,
       })
     ).toEqual(true);
     expect(
-      s.result.current.squareIsAttacked({
+      squareIsAttacked({
         occupiedBits,
         fromBitIndex: 39,
         friendlyColor: friendlyColor,
       })
     ).toEqual(true);
     expect(
-      s.result.current.squareIsAttacked({
+      squareIsAttacked({
         occupiedBits,
         fromBitIndex: 61,
         friendlyColor: friendlyColor,
       })
     ).toEqual(true);
     expect(
-      s.result.current.squareIsAttacked({
+      squareIsAttacked({
         occupiedBits,
         fromBitIndex: 21,
         friendlyColor: friendlyColor,
@@ -1192,7 +1212,6 @@ describe('SquareIsAttacked', () => {
     ).toEqual(false);
   });
   it('check if queen is attacking all its rays, and blocker is blocking attack ', () => {
-    const s = renderHook(() => useMove());
     const startState: Long[] = [...emptyBoardState];
     //setup king white
     startState[10] = Long.fromString('0x800000000', true, 16); //35
@@ -1201,7 +1220,7 @@ describe('SquareIsAttacked', () => {
 
     const friendlyColor: Color = 'w';
 
-    act(() => s.result.current.changeGameState(startState, friendlyColor));
+    changeGameState(startState, friendlyColor);
     const occupiedBits = startState.reduce(
       (acc, cur) => cur.or(acc),
       Long.UZERO
@@ -1213,21 +1232,21 @@ describe('SquareIsAttacked', () => {
       return acc.or(curr);
     }, new Long(0, 0, true));
     expect(
-      s.result.current.squareIsAttacked({
+      squareIsAttacked({
         occupiedBits,
         fromBitIndex: 35,
         friendlyColor: friendlyColor,
       })
     ).toEqual(true);
     expect(
-      s.result.current.squareIsAttacked({
+      squareIsAttacked({
         occupiedBits,
         fromBitIndex: 28,
         friendlyColor: friendlyColor,
       })
     ).toEqual(true);
     expect(
-      s.result.current.squareIsAttacked({
+      squareIsAttacked({
         occupiedBits,
         fromBitIndex: 42,
         friendlyColor: friendlyColor,
@@ -1235,7 +1254,6 @@ describe('SquareIsAttacked', () => {
     ).toEqual(false);
   });
   it('check if black is attacking all queens nerest squares, and white is attacking black when board is full of white exept black queen ', () => {
-    const s = renderHook(() => useMove());
     const startState: Long[] = [...emptyBoardState];
     //setup Queen white
     startState[8] = Long.fromString('0xfffffff7ffffffff', true, 16);
@@ -1244,28 +1262,28 @@ describe('SquareIsAttacked', () => {
 
     const friendlyColor: Color = 'w';
 
-    act(() => s.result.current.changeGameState(startState, friendlyColor));
+    changeGameState(startState, friendlyColor);
     const occupiedBits = startState.reduce(
       (acc, cur) => cur.or(acc),
       Long.UZERO
     );
 
     expect(
-      s.result.current.squareIsAttacked({
+      squareIsAttacked({
         occupiedBits,
         fromBitIndex: 35,
         friendlyColor: friendlyColor,
       })
     ).toEqual(false);
     expect(
-      s.result.current.squareIsAttacked({
+      squareIsAttacked({
         occupiedBits,
         fromBitIndex: 28,
         friendlyColor: friendlyColor,
       })
     ).toEqual(true);
     expect(
-      s.result.current.squareIsAttacked({
+      squareIsAttacked({
         occupiedBits,
         fromBitIndex: 42,
         friendlyColor: friendlyColor,
@@ -1275,7 +1293,6 @@ describe('SquareIsAttacked', () => {
 });
 describe('kingMoveMaskThatIsNotAttacked', () => {
   it('check if queen is blocking all kings moves that queen is attacking, but king can eat queen', () => {
-    const s = renderHook(() => useMove());
     const startState: Long[] = [...emptyBoardState];
     //setup king white
     startState[10] = Long.fromString('0x10000000', true, 16); //28
@@ -1284,25 +1301,25 @@ describe('kingMoveMaskThatIsNotAttacked', () => {
 
     const friendlyColor: Color = 'w';
 
-    act(() => s.result.current.changeGameState(startState, friendlyColor));
+    changeGameState(startState, friendlyColor);
     const occupiedBits = startState.reduce(
       (acc, cur) => cur.or(acc),
       Long.UZERO
     );
     const square = startState[10].countTrailingZeros();
+    console.log(square);
     const moveMask = moveMasks.getKingMoves(square);
     const expectedMoves = Long.fromString('0x1808200000', true, 16);
-
-    expect(
-      s.result.current.kingMoveMaskThatIsNotAttacked(
-        moveMask,
-        occupiedBits,
-        friendlyColor
-      )
-    ).toEqual(expectedMoves);
+    const result = kingMoveMaskThatIsNotAttacked(
+      moveMask,
+      occupiedBits,
+      friendlyColor
+    );
+    logger(expectedMoves, 'expected');
+    logger(result, 'result');
+    expect(result).toEqual(expectedMoves);
   });
   it('check if queen is blocking all kings moves that queen is attacking, but king can eat queen', () => {
-    const s = renderHook(() => useMove());
     const startState: Long[] = [...emptyBoardState];
     //setup pawns white
     startState[0] = Long.fromString('0x3828000000', true, 16); //28
@@ -1313,7 +1330,7 @@ describe('kingMoveMaskThatIsNotAttacked', () => {
 
     const friendlyColor: Color = 'w';
 
-    act(() => s.result.current.changeGameState(startState, friendlyColor));
+    changeGameState(startState, friendlyColor);
     const occupiedBits = startState.reduce(
       (acc, cur) => cur.or(acc),
       Long.UZERO
@@ -1323,7 +1340,7 @@ describe('kingMoveMaskThatIsNotAttacked', () => {
     const moveMask = moveMasks.getKingMoves(square).and(teammateOccupied.not());
     const expectedMoves = Long.fromString('0x200000', true, 16);
 
-    const result = s.result.current.kingMoveMaskThatIsNotAttacked(
+    const result = kingMoveMaskThatIsNotAttacked(
       moveMask,
       occupiedBits,
       friendlyColor
@@ -1331,7 +1348,6 @@ describe('kingMoveMaskThatIsNotAttacked', () => {
     expect(result).toEqual(expectedMoves);
   });
   it('check if queen is blocking all kings moves that queen is attacking, but king cannot eat queen because its protected', () => {
-    const s = renderHook(() => useMove());
     const startState: Long[] = [...emptyBoardState];
     //setup pawns white
     startState[0] = Long.fromString('0x3828000000', true, 16); //28
@@ -1344,7 +1360,7 @@ describe('kingMoveMaskThatIsNotAttacked', () => {
 
     const friendlyColor: Color = 'w';
 
-    act(() => s.result.current.changeGameState(startState, friendlyColor));
+    changeGameState(startState, friendlyColor);
     const occupiedBits = startState.reduce(
       (acc, cur) => cur.or(acc),
       Long.UZERO
@@ -1354,7 +1370,7 @@ describe('kingMoveMaskThatIsNotAttacked', () => {
     const moveMask = moveMasks.getKingMoves(square).and(teammateOccupied.not());
     const expectedMoves = Long.fromString('0x0', true, 16);
 
-    const result = s.result.current.kingMoveMaskThatIsNotAttacked(
+    const result = kingMoveMaskThatIsNotAttacked(
       moveMask,
       occupiedBits,
       friendlyColor
@@ -1362,7 +1378,6 @@ describe('kingMoveMaskThatIsNotAttacked', () => {
     expect(result).toEqual(expectedMoves);
   });
   it('check if queen is blocking all kings moves that queen is attacking, but king cannot eat queen because its protected', () => {
-    const s = renderHook(() => useMove());
     const startState: Long[] = [...emptyBoardState];
     //setup pawns white
     startState[0] = Long.fromString('0x3000000000000', true, 16); //28
@@ -1375,7 +1390,7 @@ describe('kingMoveMaskThatIsNotAttacked', () => {
 
     const friendlyColor: Color = 'w';
 
-    act(() => s.result.current.changeGameState(startState, friendlyColor));
+    changeGameState(startState, friendlyColor);
     const occupiedBits = startState.reduce(
       (acc, cur) => cur.or(acc),
       Long.UZERO
@@ -1385,7 +1400,7 @@ describe('kingMoveMaskThatIsNotAttacked', () => {
     const moveMask = moveMasks.getKingMoves(square).and(teammateOccupied.not());
     const expectedMoves = Long.fromString('0x4000000000000', true, 16);
 
-    const result = s.result.current.kingMoveMaskThatIsNotAttacked(
+    const result = kingMoveMaskThatIsNotAttacked(
       moveMask,
       occupiedBits,
       friendlyColor
@@ -1395,7 +1410,6 @@ describe('kingMoveMaskThatIsNotAttacked', () => {
 });
 describe('changeGameState', () => {
   it('check if turn is changing after gameState change', () => {
-    const s = renderHook(() => useMove());
     const startState: Long[] = [...emptyBoardState];
     //setup king white
     startState[10] = Long.fromString('0x10000000', true, 16); //28
@@ -1404,7 +1418,7 @@ describe('changeGameState', () => {
 
     const friendlyColor: Color = 'w';
 
-    act(() => s.result.current.changeGameState(startState, friendlyColor));
+    changeGameState(startState, friendlyColor);
     const occupiedBits = startState.reduce(
       (acc, cur) => cur.or(acc),
       Long.UZERO

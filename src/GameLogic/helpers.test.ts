@@ -1,3 +1,6 @@
+/**
+ * @jest-environment jsdom
+ */
 import {
   isNumeric,
   checkBitAt,
@@ -6,9 +9,9 @@ import {
   bitPieces,
   getBitPiece,
   logger,
-} from './helpers';
+} from '../../frontend/src/GameLogic/helpers';
 import Long from 'long';
-import { Piece } from '../Types';
+import { Piece } from '../../frontend/src/Types';
 
 describe('isNumeric', () => {
   it('returns true for a string that can be converted to a number', () => {
@@ -83,13 +86,13 @@ describe('SquareBit', () => {
 
 describe('getBitPiece', () => {
   it('should return the correct bit representation of the given piece', () => {
-    const piece: Piece = 'bP';
+    const piece = 'bP';
     const result = getBitPiece(piece);
     expect(result).toEqual(bitPieces.p);
   });
 
   it('should return the correct bit representation of the given piece', () => {
-    const piece: Piece = 'bN';
+    const piece = 'bN';
     const result = getBitPiece(piece);
     expect(result).toEqual(bitPieces.n);
   });
