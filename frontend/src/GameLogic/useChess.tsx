@@ -27,9 +27,8 @@ const useChess = () => {
   const { getMovesW, getMovesB, getState, loadFEN, getFEN, makeMove } =
     useChessApi();
 
-  const loadFen = async (fen: string) => {
-    const { gameState, checked, mate, turn } = await loadFEN(fen);
-    updateState();
+  const loadFen = (fen: string) => {
+    loadFEN(fen).then(() => updateState());
   };
 
   useEffect(() => {
@@ -65,7 +64,7 @@ const useChess = () => {
     setChecked(checked);
     setMate(mate);
     setTurn(turn);
-    setFen(fen.data);
+    setFen(fen);
   }
   const saveMoveInServer = async (props: Move) => {
     makeMove(props).finally(() => updateState());
@@ -114,7 +113,6 @@ const useChess = () => {
 const getBitIndexes = (bitString: Long) => {
   let algebricNotation: string[] = [];
   const bit = bitString.toString(2);
-  console.log(bitString.countTrailingZeros(), 'bitstring');
   for (let i = bit.length - bitString.countTrailingZeros(); i >= 0; i--) {
     const hexAtI = bit.charAt(i);
     switch (hexAtI) {

@@ -29,9 +29,9 @@ const useChessApi = () => {
     return response.data;
   };
 
-  const getFEN = async () => {
+  const getFEN = async (): Promise<string> => {
     const r = await axios.get<string>(url + '/getFEN');
-    return r;
+    return r.data;
   };
   const getMovesW = async (): Promise<Long[]> => {
     const r = await axios.get<Long[]>(url + '/getMoves/w');

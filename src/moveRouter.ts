@@ -1,35 +1,13 @@
 const moveRouter = require('express').Router();
 import { Response, Request } from 'express';
 import { Color } from './Types';
-import {
-  loadFEN,
-  getFEN,
-  makeMove,
-  getMoves,
-} from './GameLogic/gameStateChanger';
-
-import {
-  gameState,
-  pinned,
-  checked,
-  doubleChecked,
-  checkingRays,
-  mate,
-  turn,
-} from './GameLogic/move';
+import { getState, makeMove, getMoves } from './GameLogic/gameStateChanger';
+import { getFEN, loadFEN } from './GameLogic/fen';
+import {} from './GameLogic/move';
 import Long from 'long';
 
 moveRouter.get('/getState', (request: Request, response: Response) => {
-  const state = {
-    gameState,
-    pinned,
-    checked,
-    doubleChecked,
-    checkingRays,
-    mate,
-    turn,
-  };
-  response.send(state);
+  response.send(getState());
 });
 moveRouter.post('/makeMove', (request: Request, response: Response) => {
   const m = makeMove(request.body);
@@ -49,23 +27,11 @@ moveRouter.get('/getMoves/b', (request: Request, response: Response) => {
 
 moveRouter.post('/loadFEN', (request: Request, response: Response) => {
   const { fen } = request.body;
-  console.log(fen);
-  loadFEN(fen);
-  const state = {
-    gameState,
-    pinned,
-    checked,
-    doubleChecked,
-    checkingRays,
-    mate,
-    turn,
-  };
-
+  const state = loadFEN(fen);
   response.send(state);
 });
 moveRouter.get('/getFEN', (request: Request, response: Response) => {
   const fen = getFEN();
-
   response.send(fen);
 });
 

@@ -91,101 +91,112 @@ const Chessboard = () => {
   return (
     <div style={boardWrapper}>
       <div>{getFen}</div>
-      <Cb
-        id='PlayVsRandom'
-        position={getFen}
-        onPieceDrop={onDrop}
-        onPieceDragBegin={showMoves}
-        onPieceDragEnd={() => setOptionSquares([])}
-        customSquareStyles={{ ...optionSquares }}
-        customBoardStyle={{
-          borderRadius: '4px',
-          boxShadow: '0 2px 10px rgba(0, 0, 0, 0.5)',
-        }}
-      />
+      <div style={{ position: 'relative' }}>
+        {isMate && <MateBanner clearBoard={clearBoard} turn={turn} />}
+
+        <Cb
+          id='PlayVsRandom'
+          position={getFen}
+          onPieceDrop={onDrop}
+          onPieceDragBegin={showMoves}
+          onPieceDragEnd={() => setOptionSquares([])}
+          customSquareStyles={{ ...optionSquares }}
+          customBoardStyle={{
+            borderRadius: '4px',
+            boxShadow: '0 2px 10px rgba(0, 0, 0, 0.5)',
+          }}
+        />
+      </div>
       {!isMate && isCheck && <CheckBanner turn={turn} />}
-      {isMate && <MateBanner turn={turn} />}
-      <button
-        style={buttonStyle}
-        onClick={() => {
-          //@ts-ignore: next-line
-          clearBoard();
-        }}
-      >
-        clear
-      </button>
-      <button
-        style={buttonStyle}
-        onClick={() => loadFEN('8/8/8/pppppppp/PPPPPPPP/8/8/8 w KQkq - 0 4')}
-      >
-        loadpawnEat
-      </button>
-      <button
-        style={buttonStyle}
-        onClick={() =>
-          loadFEN('rnbqkbnr/ppp3pp/8/3p4/4Bp2/4Q3/PPPP4/RNB1K1NR w KQkq d6 0 4')
-        }
-      >
-        loadFen
-      </button>
-      <button
-        style={buttonStyle}
-        onClick={() =>
-          loadFEN(
-            'knBq1bnB/Q3pppp/1rp4K/2bN4/2B3R1/N3p2N/PPPPPPPR/BNBQ1BNB w KQkq - 0 1'
-          )
-        }
-      >
-        loadFen
-      </button>
-      <button
-        style={buttonStyle}
-        onClick={() =>
-          loadFEN('3r4/1b3b2/2pp4/rP1b3q/4R3/1b1P4/6b1/3q4 w KQkq d6 0 3')
-        }
-      >
-        loadFen
-      </button>
-      <button
-        style={buttonStyle}
-        onClick={() =>
-          loadFEN(
-            'rQq1Qpnr/pp4Bp/1p1bbb2/Q1Pbkb1R/3bbb2/8/PP2PPPB/QN1QKPNR w KQkq d6 0 3'
-          )
-        }
-      >
-        loadFen
-      </button>
-      <button
-        style={buttonStyle}
-        onClick={() =>
-          loadFEN(
-            'rQq3nr/pp2p1Bp/1p1b1b2/P3k3/3b1b2/8/PP2PPPB/QN1QKPNR w KQkq d6 0 3'
-          )
-        }
-      >
-        loadFen
-      </button>
-      <button
-        style={buttonStyle}
-        onClick={() =>
-          loadFEN('rnbqkbnr/p1p1pppp/1p6/2Pp4/8/8/PP1P4/RNBQKBNR w KQkq d6 0 3')
-        }
-      >
-        loadFen
-      </button>
-      <button
-        style={buttonStyle}
-        onClick={() => loadFEN('8/8/8/8/4Bb2/8/8/8 w KQkq d6 0 3')}
-      >
-        loadFen
-      </button>
-      <button
-        style={buttonStyle}
-        onClick={() => loadFEN('8/8/8/8/2K5/2B5/8/2r4k w KQkq d6 0 3')}
-      >
-        loadFen
-      </button>
+      <div>
+        <button
+          style={buttonStyle}
+          onClick={() => {
+            //@ts-ignore: next-line
+            clearBoard();
+          }}
+        >
+          clear
+        </button>
+        <button
+          style={buttonStyle}
+          onClick={() => loadFEN('8/8/8/pppppppp/PPPPPPPP/8/8/8 w KQkq - 0 4')}
+        >
+          loadpawnEat
+        </button>
+        <button
+          style={buttonStyle}
+          onClick={() =>
+            loadFEN(
+              'rnbqkbnr/ppp3pp/8/3p4/4Bp2/4Q3/PPPP4/RNB1K1NR w KQkq d6 0 4'
+            )
+          }
+        >
+          loadFen
+        </button>
+        <button
+          style={buttonStyle}
+          onClick={() =>
+            loadFEN(
+              'knBq1bnB/Q3pppp/1rp4K/2bN4/2B3R1/N3p2N/PPPPPPPR/BNBQ1BNB w KQkq - 0 1'
+            )
+          }
+        >
+          loadFen
+        </button>
+        <button
+          style={buttonStyle}
+          onClick={() =>
+            loadFEN('3r4/1b3b2/2pp4/rP1b3q/4R3/1b1P4/6b1/3q4 w KQkq d6 0 3')
+          }
+        >
+          loadFen
+        </button>
+        <button
+          style={buttonStyle}
+          onClick={() =>
+            loadFEN(
+              'rQq1Qpnr/pp4Bp/1p1bbb2/Q1Pbkb1R/3bbb2/8/PP2PPPB/QN1QKPNR w KQkq d6 0 3'
+            )
+          }
+        >
+          loadFen
+        </button>
+        <button
+          style={buttonStyle}
+          onClick={() =>
+            loadFEN(
+              'rQq3nr/pp2p1Bp/1p1b1b2/P3k3/3b1b2/8/PP2PPPB/QN1QKPNR w KQkq d6 0 3'
+            )
+          }
+        >
+          loadFen
+        </button>
+        <button
+          style={buttonStyle}
+          onClick={() =>
+            loadFEN(
+              'rnbqkbnr/p1p1pppp/1p6/2Pp4/8/8/PP1P4/RNBQKBNR w KQkq d6 0 3'
+            )
+          }
+        >
+          loadFen
+        </button>
+        <button
+          style={buttonStyle}
+          onClick={() => loadFEN('8/8/8/8/4Bb2/8/8/8 w KQkq d6 0 3')}
+        >
+          loadFen
+        </button>
+        <button
+          style={buttonStyle}
+          onClick={() =>
+            loadFEN('qqqqqqqq/8/8/8/2K5/2B5/8/qqq4k w KQkq d6 0 3')
+          }
+        >
+          loadFen
+        </button>
+      </div>
     </div>
   );
 };
@@ -198,13 +209,52 @@ const CheckBanner = ({ turn }: { turn: Color }) => {
     </div>
   );
 };
-const MateBanner = ({ turn }: { turn: Color }) => {
+const MateBanner = ({
+  turn,
+  clearBoard,
+}: {
+  clearBoard: () => void;
+  turn: Color;
+}) => {
   const beingChecked = turn === 'b' ? 'Black' : 'White';
 
   return (
-    <div>
-      <p>{`${beingChecked} lost in check mate`}</p>
-    </div>
+    <>
+      <div
+        style={{
+          padding: '50px',
+          position: 'absolute',
+          backgroundColor: 'black',
+          width: '86%',
+          height: '86%',
+          opacity: 0.2,
+          zIndex: 10,
+        }}
+      />
+      <div
+        style={{
+          padding: '50px',
+          backgroundColor: 'beige',
+          zIndex: 20,
+          position: 'absolute',
+          width: '150px',
+          height: '140px',
+          left: '25%',
+          top: '25%',
+          borderRadius: '25px',
+        }}
+      >
+        <p>{`${beingChecked} lost in check mate`}</p>
+        <button
+          style={buttonStyle}
+          onClick={() => {
+            clearBoard();
+          }}
+        >
+          New game
+        </button>
+      </div>
+    </>
   );
 };
 
