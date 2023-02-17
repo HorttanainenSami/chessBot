@@ -120,21 +120,44 @@ export const getUpdatedState = ({
   const toMask = Long.UONE.shiftLeft(toBitIndex);
   const fromMask = Long.UONE.shiftLeft(fromBitIndex);
   //TODO make castle
-
   //if piece moved is king or rook remove castling
   if (piece === 10) {
+    if (fromBitIndex === 3 && toBitIndex === 1) {
+      if (!initialGameState[2].and(Long.UONE).isZero()) {
+        initialGameState[2] = initialGameState[2].and(Long.UONE.not());
+        initialGameState[2] = initialGameState[2].or(Long.UONE.shl(2));
+      }
+    }
+    if (fromBitIndex === 3 && toBitIndex === 5) {
+      if (!initialGameState[2].and(Long.UONE.shl(7)).isZero()) {
+        initialGameState[2] = initialGameState[2].and(Long.UONE.shl(7).not());
+        initialGameState[2] = initialGameState[2].or(Long.UONE.shl(4));
+      }
+    }
     initialCastling = initialCastling.replace('KQ', '');
   }
   if (piece === 11) {
+    if (fromBitIndex === 59 && toBitIndex === 57) {
+      if (!initialGameState[3].and(Long.UONE.shl(56)).isZero()) {
+        initialGameState[3] = initialGameState[3].and(Long.UONE.shl(56).not());
+        initialGameState[3] = initialGameState[3].or(Long.UONE.shl(58));
+      }
+    }
+    if (fromBitIndex === 59 && toBitIndex === 61) {
+      if (!initialGameState[3].and(Long.UONE.shl(63)).isZero()) {
+        initialGameState[3] = initialGameState[3].and(Long.UONE.shl(63).not());
+        initialGameState[3] = initialGameState[3].or(Long.UONE.shl(60));
+      }
+    }
     initialCastling = initialCastling.replace('kq', '');
   }
   if (piece === 2) {
-    initialCastling = initialCastling.replace('K', '');
-    initialCastling = initialCastling.replace('Q', '');
+    if (fromBitIndex === 0) initialCastling = initialCastling.replace('K', '');
+    if (fromBitIndex === 7) initialCastling = initialCastling.replace('Q', '');
   }
   if (piece === 3) {
-    initialCastling = initialCastling.replace('k', '');
-    initialCastling = initialCastling.replace('q', '');
+    if (fromBitIndex === 56) initialCastling = initialCastling.replace('k', '');
+    if (fromBitIndex === 63) initialCastling = initialCastling.replace('q', '');
   }
   //TODO if move is rook remove castling rights of that side rook
 

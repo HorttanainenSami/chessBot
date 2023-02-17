@@ -194,6 +194,12 @@ const Chessboard = () => {
         >
           loadFen
         </button>
+        <button
+          style={buttonStyle}
+          onClick={() => loadFEN('r3k2r/8/8/5R2/8/8/8/R3K2R w KQkq - 0 1')}
+        >
+          loadFen
+        </button>
       </div>
     </div>
   );
