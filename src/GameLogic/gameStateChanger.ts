@@ -99,14 +99,11 @@ export const getState = () => ({
   castling,
 });
 
-/**
- *
- * @todo upgrade pawn to queen
- */
 export const updateGameState = ({ piece, color, from, to }: Move) => {
   const toBitIndex = SquareBit[to];
   const fromBitIndex = SquareBit[from];
   let moveBoard = gameState[piece] as Long;
+  let modifiedGameState = gameState;
   //update moved piece
 
   const toMask = Long.UONE.shiftLeft(toBitIndex);
@@ -118,8 +115,17 @@ export const updateGameState = ({ piece, color, from, to }: Move) => {
   const deletedPieces = elPassantCapture
     ? removeCapturedPiece(elPassantCapture.square, color)
     : removeCapturedPiece(toBitIndex, color);
-  //promote pawn
-  //set check or mate
+  //if pawn moves to last rank it will be promoted to Queen
+  if (piece === 1 && ~~(toBitIndex / 8) === 0) {
+    modifiedGameState[9] = modifiedGameState[9].or(toMask);
+    moveBoard = moveBoard.and(toMask.not());
+  }
+  if (piece === 0 && ~~(toBitIndex / 8) === 7) {
+    modifiedGameState[8] = modifiedGameState[8].or(toMask);
+    moveBoard = moveBoard.and(toMask.not());
+  }
+  //make castle
+
   //set/remove elpassant
   if ((piece === 1 || piece === 0) && (fromBitIndex - toBitIndex) % 16 === 0) {
     const elPassantSquare = color === 'w' ? fromBitIndex + 8 : fromBitIndex - 8;
@@ -129,7 +135,7 @@ export const updateGameState = ({ piece, color, from, to }: Move) => {
   }
 
   //final state changes
-  let modifiedGameState = gameState;
+
   const newTurn = turn === 'b' ? 'w' : 'b';
   if (deletedPieces) {
     modifiedGameState[deletedPieces.i] = deletedPieces.pieces;
