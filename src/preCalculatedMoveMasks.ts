@@ -160,7 +160,7 @@ export function obstructed(from: number, to: number, occupied: Long) {
 export function mayMove({ from, to, occupied }: ImayMove) {
   const between = inBetween(from, to);
   if (between === null) return false;
-  return between.and(occupied).isZero();
+  return between.and(occupied).and(Long.UONE.shl(from).not()).isZero();
 }
 
 /////////////////////////////////////////////////BISHOP///////////////////////////////////////
@@ -416,4 +416,7 @@ export default {
   getRookMoves,
   getKnightMoves,
   getKingMoves,
+  inBetween,
+  mayMove,
+  obstructed,
 };

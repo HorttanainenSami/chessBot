@@ -120,7 +120,7 @@ const Chessboard = () => {
         </button>
         <button
           style={buttonStyle}
-          onClick={() => loadFEN('8/8/8/pppppppp/PPPPPPPP/8/8/8 w KQkq - 0 4')}
+          onClick={() => loadFEN('8/8/8/pppppppp/PPPPPPPP/8/8/8 w - - 0 4')}
         >
           loadpawnEat
         </button>
@@ -138,7 +138,7 @@ const Chessboard = () => {
           style={buttonStyle}
           onClick={() =>
             loadFEN(
-              'knBq1bnB/Q3pppp/1rp4K/2bN4/2B3R1/N3p2N/PPPPPPPR/BNBQ1BNB w KQkq - 0 1'
+              'knBq1bnB/Q3pppp/1rp4K/2bN4/2B3R1/N3p2N/PPPPPPPR/BNBQ1BNB w - - 0 1'
             )
           }
         >
@@ -156,7 +156,7 @@ const Chessboard = () => {
           style={buttonStyle}
           onClick={() =>
             loadFEN(
-              'rQq1Qpnr/pp4Bp/1p1bbb2/Q1Pbkb1R/3bbb2/8/PP2PPPB/QN1QKPNR w KQkq d6 0 3'
+              'rQq1Qpnr/pp4Bp/1p1bbb2/Q1Pbkb1R/3bbb2/8/PP2PPPB/QN1QKPNR w K d6 0 3'
             )
           }
         >
@@ -166,7 +166,7 @@ const Chessboard = () => {
           style={buttonStyle}
           onClick={() =>
             loadFEN(
-              'rQq3nr/pp2p1Bp/1p1b1b2/P3k3/3b1b2/8/PP2PPPB/QN1QKPNR w KQkq d6 0 3'
+              'rQq3nr/pp2p1Bp/1p1b1b2/P3k3/3b1b2/8/PP2PPPB/QN1QKPNR w K d6 0 3'
             )
           }
         >
@@ -190,9 +190,7 @@ const Chessboard = () => {
         </button>
         <button
           style={buttonStyle}
-          onClick={() =>
-            loadFEN('qqqqqqqq/8/8/8/2K5/2B5/8/qqq4k w KQkq d6 0 3')
-          }
+          onClick={() => loadFEN('qqqqqqqq/8/8/8/2K5/2B5/8/qqq4k w - d6 0 3')}
         >
           loadFen
         </button>

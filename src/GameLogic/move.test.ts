@@ -1,532 +1,1421 @@
-import { logger } from './helpers';
-import Long from 'long';
-import { Color } from '../../frontend/src/Types';
-import * as moveMasks from '../preCalculatedMoveMasks';
 import {
-  kingPseudoMoves,
-  bishopLegalMoves,
-  bishopAttacks,
-  rookLegalMoves,
-  rookLegalAttacks,
-  pawnLegalMoves,
-  pawnPseudoAttacks,
-  pawnPseudoMoves,
-  knightPseudoMoves,
+  squareIsAttacked,
+  subsetOfMaskThatIsNotAttacked,
+  getBishop,
+  getRook,
+  getKing,
+  getKnight,
+  getPawn,
 } from './move';
+import { loadFEN } from './fen';
+import { getState } from './gameStateChanger';
+import Long from 'long';
+import { Color } from '../Types';
+import { logger } from './helpers';
 
-moveMasks.initializePreCalculatedMoves();
-
-//**********************************KNIGHT*****************************************
-describe('knightPseudoMoves', () => {
-  it('should return the correct pseudo moves for a knight', () => {
-    const fromBitIndex = 0;
-    const expectedPseudoMoves = Long.fromString('20400', true, 16);
-    expect(knightPseudoMoves({ fromBitIndex })).toEqual(expectedPseudoMoves);
-  });
-
-  it('should return the correct pseudo moves for a knight on the A file', () => {
-    const fromBitIndex = 7;
-    const expectedPseudoMoves = Long.fromString('402000', true, 16);
-    expect(knightPseudoMoves({ fromBitIndex }).toString(2)).toEqual(
-      expectedPseudoMoves.toString(2)
+//--------------------------------------------------------/
+//AbsolutelyPinned
+//--------------------------------------------------------/
+describe('check if bishop is absolutely pinned', () => {
+  it('should return zero possible moves for white bishop when its being absolutely pinned from south with rook', () => {
+    loadFEN('k7/8/8/2K5/8/2B5/8/2r5 w - - 0 1');
+    const {
+      gameState: startState,
+      elPassant,
+      check,
+      checkingRays,
+      doubleCheck,
+      pinned,
+    } = getState();
+    const blackOccupiedBits = startState.reduce((acc, curr, i) => {
+      if (i % 2 === 0) return acc;
+      return acc.or(curr);
+    }, Long.UZERO);
+    const occupiedBits = startState.reduce(
+      (acc, curr) => acc.or(curr),
+      Long.UZERO
     );
-  });
-
-  it('should return the correct pseudo moves for a knight on the up-left corner', () => {
-    const fromBitIndex = 56;
-    const expectedPseudoMoves = Long.fromString('4020000000000', true, 16);
-    expect(knightPseudoMoves({ fromBitIndex }).toString(2)).toEqual(
-      expectedPseudoMoves.toString(2)
-    );
-  });
-  it('should return the correct pseudo moves for a knight on the middle of board', () => {
-    const fromBitIndex = 27;
-    const expectedPseudoMoves = Long.fromString('142200221400', true, 16);
-    expect(knightPseudoMoves({ fromBitIndex }).toString(2)).toEqual(
-      expectedPseudoMoves.toString(2)
-    );
-  });
-});
-//**********************************BISHOP*****************************************
-describe('bishopLegalAttacks', () => {
-  it('should return all possible moves for bishop on D4 when mask contains one blocker', () => {
-    const fromBitIndex = 35;
-    const occupiedBits = Long.fromString('0x810000000', true, 16);
-    const expectedMoves = Long.fromString('0x4122140014020100', true, 16);
-    const result = bishopAttacks({ fromBitIndex, occupiedBits });
-    expect(result).toEqual(expectedMoves);
-  });
-  it('should return all possible moves for bishop on D4 when board is empty ', () => {
-    const fromBitIndex = 35;
-    const occupiedBits = Long.fromString('0x800000000', true, 16);
-    const expectedMoves = Long.fromString('0x4122140014224180', true, 16);
-    const result = bishopAttacks({ fromBitIndex, occupiedBits });
-    expect(result).toEqual(expectedMoves);
-  });
-  it('should return all possible moves for bishop on D4 when board is full', () => {
-    const fromBitIndex = 35;
-    const occupiedBits = Long.fromString('0xffffffffffffffff', true, 16);
-    const expectedMoves = Long.fromString('0x140014000000', true, 16);
-    const result = bishopAttacks({ fromBitIndex, occupiedBits });
-    expect(result).toEqual(expectedMoves);
-  });
-});
-describe('bishopLegalMoves', () => {
-  it('should return all possible moves for bishop on D4 when board is empty', () => {
-    const color: Color = 'b';
-
-    const fromBitIndex = 28;
-    const bishopPosition = Long.fromString('0x10000000', true, 16);
-    const occupiedBits = Long.fromString('0x10000000', true, 16);
-    const teammateOccupiedBits = Long.fromString('0x10000000', true, 16);
-    const expectedMoves = Long.fromString('0x182442800284482', true, 16);
-    const params = {
-      bishopPosition,
-      occupiedBits,
-      fromBitIndex,
-      teammateOccupiedBits,
-      color,
-    };
-    expect(bishopLegalMoves(params)).toEqual(expectedMoves);
-  });
-
-  it('should return all possible moves for bishop on D4 when board is not empty', () => {
-    const color: Color = 'b';
-
-    const fromBitIndex = 28;
-    const bishopPosition = Long.fromString('0x10000000', true, 16);
-    const occupiedBits = Long.fromString('0xffff0000100000ff', true, 16);
-    const teammateOccupiedBits = Long.fromString('0x100000ff', true, 16);
-    const expectedMoves = Long.fromString('0x82442800284400', true, 16);
-    const params = {
-      bishopPosition,
-      occupiedBits,
-      fromBitIndex,
-      teammateOccupiedBits,
-      color,
-    };
-
-    expect(bishopLegalMoves(params)).toEqual(expectedMoves);
-  });
-  it('should return all possible moves for bishop on A8', () => {
-    const color: Color = 'b';
-    const fromBitIndex = 63;
-    const bishopPosition = Long.fromString('0x8000000000000000', true, 16);
-    const occupiedBits = Long.fromString('0x80000000ff00ff00', true, 16);
-    const teammateOccupiedBits = Long.fromString(
-      '0x800000000000ff00',
-      true,
-      16
-    );
-    const expectedMoves = Long.fromString('0x40201008000000', true, 16);
-    const params = {
-      bishopPosition,
-      occupiedBits,
-      fromBitIndex,
-      teammateOccupiedBits,
-      color,
-    };
-
-    expect(bishopLegalMoves(params)).toEqual(expectedMoves);
-  });
-
-  it('should return all possible moves for bishop on A8 when behind blocker there is empty squares', () => {
-    const color: Color = 'b';
-    const fromBitIndex = 28;
-    const bishopPosition = Long.fromString('0x10000000', true, 16);
-    const occupiedBits = Long.fromString('0x80402010ff0002', true, 16);
-    const teammateOccupiedBits = Long.fromString('0x80000010ff0002', true, 16);
-    const expectedMoves = Long.fromString('0x102042800000000', true, 16);
-    const params = {
-      bishopPosition,
-      occupiedBits,
-      fromBitIndex,
-      teammateOccupiedBits,
-      color,
-    };
-    expect(bishopLegalMoves(params)).toEqual(expectedMoves);
-  });
-});
-
-//**********************************KING*****************************************
-
-describe('kingPseudoMoves', () => {
-  it('should return all possible moves for king on D4', () => {
-    const fromBitIndex = 28;
-    const expectedMoves = Long.fromString('0x3828380000', true, 16);
-    expect(kingPseudoMoves({ fromBitIndex })).toEqual(expectedMoves);
-  });
-
-  it('should return all possible moves for king on A8', () => {
-    const fromBitIndex = 63;
-    const expectedMoves = Long.fromString('0x40c0000000000000', true, 16);
-    expect(kingPseudoMoves({ fromBitIndex })).toEqual(expectedMoves);
-  });
-
-  it('should return all possible moves for king on H8', () => {
-    const fromBitIndex = 56;
-    const expectedMoves = Long.fromString('0x203000000000000', true, 16);
-    expect(kingPseudoMoves({ fromBitIndex })).toEqual(expectedMoves);
-  });
-});
-
-//**********************************ROOK*****************************************
-
-describe('RookLegalMoves', () => {
-  it('should return all possible moves for rook on D4, full of teammates', () => {
-    const color: Color = 'b';
-    const fromBitIndex = 28;
-    const occupiedBits = Long.fromString('0x10101010ff101010', true, 16);
-    const expectedMoves = Long.fromString('0x0', true, 16);
-    const teammateOccupiedBits = Long.fromString(
-      '0x10101010ff101010',
-      true,
-      16
-    );
-    const params = {
-      occupiedBits,
-      teammateOccupiedBits,
-      fromBitIndex,
-      color,
-    };
-
-    expect(rookLegalMoves(params)).toEqual(expectedMoves);
-  });
-  it('should return all possible moves for rook on D4, full of enemies', () => {
-    const fromBitIndex = 28;
-    const color: Color = 'b';
-    const occupiedBits = Long.fromString('0xffffffffffffffff', true, 16);
-    const expectedMoves = Long.fromString('1028100000', true, 16);
-    const teammateOccupiedBits = Long.fromString('10000000', true, 16);
-    const params = {
-      occupiedBits,
-      teammateOccupiedBits,
-      fromBitIndex,
-      color,
-    };
-
-    expect(rookLegalMoves(params).toString(2)).toEqual(
-      expectedMoves.toString(2)
-    );
-  });
-
-  it('should return all possible moves for rook on D4, empty', () => {
-    const fromBitIndex = 28;
-    const color: Color = 'b';
-    const occupiedBits = Long.fromString('10000000', true, 16);
-    const expectedMoves = Long.fromString('10101010ef101010', true, 16);
-    const teammateOccupiedBits = Long.fromString('10000000', true, 16);
-    const params = {
-      occupiedBits,
-      teammateOccupiedBits,
-      fromBitIndex,
-      color,
-    };
-    const r = rookLegalMoves(params);
-    expect(r).toEqual(expectedMoves);
-  });
-  it('should return all possible moves for rook on D4, some filled', () => {
-    const fromBitIndex = 28;
-    const color: Color = 'b';
-    const occupiedBits = Long.fromString('0x10101000c3101010', true, 16);
-    const expectedMoves = Long.fromString('0x106e000000', true, 16);
-    const teammateOccupiedBits = Long.fromString(
-      '0x1000100091100010',
-      true,
-      16
-    );
-    const params = {
-      occupiedBits,
-      teammateOccupiedBits,
-      fromBitIndex,
-      color,
-    };
-
-    expect(rookLegalMoves(params).toString(2)).toEqual(
-      expectedMoves.toString(2)
-    );
-  });
-  it('should return all possible moves for rook on D4, some filled', () => {
-    const fromBitIndex = 28;
-    const color: Color = 'b';
-    const occupiedBits = Long.fromString('0x10100000', true, 16);
-    const expectedMoves = Long.fromString('0x10101010ef100000', true, 16);
-    const teammateOccupiedBits = Long.fromString('0x10000000', true, 16);
-
-    const r = rookLegalMoves({
-      occupiedBits,
-      teammateOccupiedBits,
-      fromBitIndex,
-    });
-    expect(r).toEqual(expectedMoves);
-  });
-  it('should return all possible moves for rook on b2, some filled', () => {
-    const fromBitIndex = 13;
+    const whiteOccupiedBits = occupiedBits.xor(blackOccupiedBits);
     const color: Color = 'w';
-    const occupiedBits = Long.fromString('0x302000', true, 16);
-    const expectedMoves = Long.fromString('0xdf20', true, 16);
-    const teammateOccupiedBits = Long.fromString('0x300000', true, 16);
-    const r = rookLegalMoves({
-      occupiedBits,
-      teammateOccupiedBits,
-      fromBitIndex,
-    });
-    expect(r).toEqual(expectedMoves);
+    const friendlyKing = startState[10];
+
+    const fromBitIndex = 21;
+
+    const expectedMoves = Long.fromString('0x0', true, 16);
+
+    expect(
+      getBishop({
+        blackOccupiedBits,
+        whiteOccupiedBits,
+        occupiedBits,
+        fromBitIndex,
+        color,
+        check,
+        checkingRays,
+        doubleCheck,
+        pinned,
+        friendlyKing,
+      })
+    ).toEqual(expectedMoves);
+  });
+  it('should return zero possible moves for white bishop when its being absolutely pinned from west with rook', () => {
+    const expectedMoves = Long.fromString('0x0', true, 16);
+
+    loadFEN('k7/8/8/2r1B1K1/8/8/8/8 w - - 0 1');
+    const {
+      gameState: startState,
+      elPassant,
+      check,
+      checkingRays,
+      doubleCheck,
+      pinned,
+    } = getState();
+    const blackOccupiedBits = startState.reduce((acc, curr, i) => {
+      if (i % 2 === 0) return acc;
+      return acc.or(curr);
+    }, Long.UZERO);
+    const occupiedBits = startState.reduce(
+      (acc, curr) => acc.or(curr),
+      Long.UZERO
+    );
+    const whiteOccupiedBits = occupiedBits.xor(blackOccupiedBits);
+    const color: Color = 'w';
+    const friendlyKing = startState[10];
+
+    const fromBitIndex = 35;
+
+    expect(
+      getBishop({
+        blackOccupiedBits,
+        whiteOccupiedBits,
+        occupiedBits,
+        fromBitIndex,
+        color,
+        check,
+        checkingRays,
+        doubleCheck,
+        pinned,
+        friendlyKing,
+      })
+    ).toEqual(expectedMoves);
+  });
+  it('should return zero possible moves for white bishop when its being absolutely pinned from east with Queen', () => {
+    loadFEN('k7/8/8/2K1B1r1/8/8/8/8 w - - 0 1');
+    const {
+      gameState: startState,
+      elPassant,
+      check,
+      checkingRays,
+      doubleCheck,
+      pinned,
+    } = getState();
+    const blackOccupiedBits = startState.reduce((acc, curr, i) => {
+      if (i % 2 === 0) return acc;
+      return acc.or(curr);
+    }, Long.UZERO);
+    const occupiedBits = startState.reduce(
+      (acc, curr) => acc.or(curr),
+      Long.UZERO
+    );
+    const whiteOccupiedBits = occupiedBits.xor(blackOccupiedBits);
+    const color: Color = 'w';
+    const fromBitIndex = 35;
+    const friendlyKing = startState[10];
+
+    const expectedMoves = Long.fromString('0x0', true, 16);
+
+    expect(
+      getBishop({
+        blackOccupiedBits,
+        whiteOccupiedBits,
+        occupiedBits,
+        fromBitIndex,
+        color,
+        check,
+        checkingRays,
+        doubleCheck,
+        pinned,
+        friendlyKing,
+      })
+    ).toEqual(expectedMoves);
+  });
+  it('should return possible moves for white bishop when its not being pinned', () => {
+    const fromBitIndex = 35;
+
+    loadFEN('k7/8/6q1/2K1B3/8/8/8/8 w - - 0 1');
+    const {
+      gameState: startState,
+      elPassant,
+      check,
+      checkingRays,
+      doubleCheck,
+      pinned,
+    } = getState();
+    const blackOccupiedBits = startState.reduce((acc, curr, i) => {
+      if (i % 2 === 0) return acc;
+      return acc.or(curr);
+    }, Long.UZERO);
+    const occupiedBits = startState.reduce(
+      (acc, curr) => acc.or(curr),
+      Long.UZERO
+    );
+    const whiteOccupiedBits = occupiedBits.xor(blackOccupiedBits);
+    const color: Color = 'w';
+    const friendlyKing = startState[10];
+
+    const expectedMoves = Long.fromString('4122140014224180', true, 16);
+    expect(
+      getBishop({
+        blackOccupiedBits,
+        whiteOccupiedBits,
+        occupiedBits,
+        fromBitIndex,
+        color,
+        check,
+        checkingRays,
+        doubleCheck,
+        pinned,
+        friendlyKing,
+      })
+    ).toEqual(expectedMoves);
   });
 });
-
-describe('RookLegalAttacks', () => {
-  it('should return all possible moves for rook on D4, empty', () => {
+describe('check if rook is absolutely pinned', () => {
+  it('should return zero possible moves for white rook when its being absolutely pinned from southW with bishop', () => {
+    loadFEN('k7/8/8/4K3/3R4/2b5/8/8 w - - 0 1');
+    const {
+      gameState: startState,
+      elPassant,
+      check,
+      checkingRays,
+      doubleCheck,
+      pinned,
+    } = getState();
+    const blackOccupiedBits = startState.reduce((acc, curr, i) => {
+      if (i % 2 === 0) return acc;
+      return acc.or(curr);
+    }, Long.UZERO);
+    const occupiedBits = startState.reduce(
+      (acc, curr) => acc.or(curr),
+      Long.UZERO
+    );
+    const whiteOccupiedBits = occupiedBits.xor(blackOccupiedBits);
+    const color: Color = 'w';
+    const friendlyKing = startState[10];
     const fromBitIndex = 28;
-    const occupiedBits = Long.fromString('0x10000000', true, 16);
-    const expectedMoves = Long.fromString('0x10101010ef101010', true, 16);
+    const expectedMoves = Long.fromString('0x0', true, 16);
 
-    const params = {
+    expect(
+      getRook({
+        blackOccupiedBits,
+        whiteOccupiedBits,
+        occupiedBits,
+        fromBitIndex,
+        color,
+        check,
+        checkingRays,
+        doubleCheck,
+        pinned,
+        friendlyKing,
+      })
+    ).toEqual(expectedMoves);
+  });
+  it('should return zero possible moves for white rook when its being absolutely pinned from Southeast with bishop', () => {
+    loadFEN('k7/8/8/2K5/8/4R3/8/6b1 w - - 0 1');
+    const {
+      gameState: startState,
+      elPassant,
+      check,
+      checkingRays,
+      doubleCheck,
+      pinned,
+    } = getState();
+    const blackOccupiedBits = startState.reduce((acc, curr, i) => {
+      if (i % 2 === 0) return acc;
+      return acc.or(curr);
+    }, Long.UZERO);
+    const occupiedBits = startState.reduce(
+      (acc, curr) => acc.or(curr),
+      Long.UZERO
+    );
+    const whiteOccupiedBits = occupiedBits.xor(blackOccupiedBits);
+    const color: Color = 'w';
+    const friendlyKing = startState[10];
+
+    const fromBitIndex = startState[2].countTrailingZeros();
+
+    const expectedMoves = Long.fromString('0x0', true, 16);
+    expect(
+      getRook({
+        blackOccupiedBits,
+        whiteOccupiedBits,
+        occupiedBits,
+        fromBitIndex,
+        color,
+        check,
+        checkingRays,
+        doubleCheck,
+        pinned,
+        friendlyKing,
+      })
+    ).toEqual(expectedMoves);
+  });
+  it('should return zero possible moves for white rook when its being absolutely pinned from NorthEast with Queen', () => {
+    loadFEN('k7/8/8/2q5/3R4/4K3/8/8 w - - 0 1');
+    const {
+      gameState: startState,
+      elPassant,
+      check,
+      checkingRays,
+      doubleCheck,
+      pinned,
+    } = getState();
+    const blackOccupiedBits = startState.reduce((acc, curr, i) => {
+      if (i % 2 === 0) return acc;
+      return acc.or(curr);
+    }, Long.UZERO);
+    const occupiedBits = startState.reduce(
+      (acc, curr) => acc.or(curr),
+      Long.UZERO
+    );
+    const whiteOccupiedBits = occupiedBits.xor(blackOccupiedBits);
+    const color: Color = 'w';
+    const friendlyKing = startState[10];
+
+    const fromBitIndex = 28;
+
+    const expectedMoves = Long.fromString('0x0', true, 16);
+    expect(
+      getRook({
+        blackOccupiedBits,
+        whiteOccupiedBits,
+        occupiedBits,
+        fromBitIndex,
+        color,
+        check,
+        checkingRays,
+        doubleCheck,
+        pinned,
+        friendlyKing,
+      })
+    ).toEqual(expectedMoves);
+  });
+  it('should return zero possible moves for white rook when its being absolutely pinned from NWest with Queen', () => {
+    const fromBitIndex = 28;
+
+    loadFEN('k7/8/8/4q3/3R4/2K5/8/8 w - - 0 1');
+    const {
+      gameState: startState,
+      elPassant,
+      check,
+      checkingRays,
+      doubleCheck,
+      pinned,
+    } = getState();
+    const blackOccupiedBits = startState.reduce((acc, curr, i) => {
+      if (i % 2 === 0) return acc;
+      return acc.or(curr);
+    }, Long.UZERO);
+    const occupiedBits = startState.reduce(
+      (acc, curr) => acc.or(curr),
+      Long.UZERO
+    );
+    const whiteOccupiedBits = occupiedBits.xor(blackOccupiedBits);
+    const color: Color = 'w';
+    const friendlyKing = startState[10];
+
+    const expectedMoves = Long.fromString('0x0', true, 16);
+    expect(
+      getRook({
+        blackOccupiedBits,
+        whiteOccupiedBits,
+        occupiedBits,
+        fromBitIndex,
+        color,
+        check,
+        checkingRays,
+        doubleCheck,
+        pinned,
+        friendlyKing,
+      })
+    ).toEqual(expectedMoves);
+  });
+});
+describe('check if knight is absolutely pinned', () => {
+  it('Knight is absolutely pinned from N', () => {
+    loadFEN('k7/8/8/8/3q4/8/3N4/3K4 w - - 0 1');
+    const {
+      gameState: startState,
+      elPassant,
+      check,
+      checkingRays,
+      doubleCheck,
+      pinned,
+    } = getState();
+    const blackOccupiedBits = startState.reduce((acc, curr, i) => {
+      if (i % 2 === 0) return acc;
+      return acc.or(curr);
+    }, Long.UZERO);
+    const occupiedBits = startState.reduce(
+      (acc, curr) => acc.or(curr),
+      Long.UZERO
+    );
+    const whiteOccupiedBits = occupiedBits.xor(blackOccupiedBits);
+    const color: Color = 'w';
+    const friendlyKing = startState[10];
+
+    const fromBitIndex = 12;
+    const expectedMoves = Long.fromString('0x0', true, 16);
+
+    expect(
+      getKnight({
+        blackOccupiedBits,
+        whiteOccupiedBits,
+        occupiedBits,
+        fromBitIndex,
+        color,
+        check,
+        checkingRays,
+        doubleCheck,
+        pinned,
+        friendlyKing,
+      })
+    ).toEqual(expectedMoves);
+  });
+  it('Knight is absolutely pinned from NW', () => {
+    loadFEN('k7/8/8/8/8/3q4/4N3/5K2 w - - 0 1');
+    const {
+      gameState: startState,
+      elPassant,
+      check,
+      checkingRays,
+      doubleCheck,
+      pinned,
+    } = getState();
+    const blackOccupiedBits = startState.reduce((acc, curr, i) => {
+      if (i % 2 === 0) return acc;
+      return acc.or(curr);
+    }, Long.UZERO);
+    const occupiedBits = startState.reduce(
+      (acc, curr) => acc.or(curr),
+      Long.UZERO
+    );
+    const whiteOccupiedBits = occupiedBits.xor(blackOccupiedBits);
+    const color: Color = 'w';
+    const friendlyKing = startState[10];
+
+    const fromBitIndex = 11;
+    const expectedMoves = Long.fromString('0x0', true, 16);
+
+    expect(
+      getKnight({
+        blackOccupiedBits,
+        whiteOccupiedBits,
+        occupiedBits,
+        fromBitIndex,
+        color,
+        check,
+        checkingRays,
+        doubleCheck,
+        pinned,
+        friendlyKing,
+      })
+    ).toEqual(expectedMoves);
+  });
+});
+describe('check if pawn is absolutely pinned', () => {
+  it('Pawn is absolutely pinned from NW', () => {
+    loadFEN('k7/8/8/8/2q5/8/4P3/5K2 w - - 0 1');
+    const {
+      gameState: startState,
+      elPassant,
+      check,
+      checkingRays,
+      doubleCheck,
+      pinned,
+    } = getState();
+    const blackOccupiedBits = startState.reduce((acc, curr, i) => {
+      if (i % 2 === 0) return acc;
+      return acc.or(curr);
+    }, Long.UZERO);
+    const occupiedBits = startState.reduce(
+      (acc, curr) => acc.or(curr),
+      Long.UZERO
+    );
+    const whiteOccupiedBits = occupiedBits.xor(blackOccupiedBits);
+    const color: Color = 'w';
+    const friendlyKing = startState[10];
+
+    const fromBitIndex = 11;
+    const expectedMoves = Long.fromString('0x0', true, 16);
+
+    expect(
+      getPawn({
+        blackOccupiedBits,
+        whiteOccupiedBits,
+        occupiedBits,
+        fromBitIndex,
+        color,
+        check,
+        checkingRays,
+        doubleCheck,
+        pinned,
+        friendlyKing,
+        elPassant,
+      })
+    ).toEqual(expectedMoves);
+  });
+
+  it('Pawn is absolutely pinned from E', () => {
+    loadFEN('k7/8/8/8/8/8/8/3KP2q w - - 0 1');
+    const {
+      gameState: startState,
+      elPassant,
+      check,
+      checkingRays,
+      doubleCheck,
+      pinned,
+    } = getState();
+    const blackOccupiedBits = startState.reduce((acc, curr, i) => {
+      if (i % 2 === 0) return acc;
+      return acc.or(curr);
+    }, Long.UZERO);
+    const occupiedBits = startState.reduce(
+      (acc, curr) => acc.or(curr),
+      Long.UZERO
+    );
+    const whiteOccupiedBits = occupiedBits.xor(blackOccupiedBits);
+    const color: Color = 'w';
+    const friendlyKing = startState[10];
+    const fromBitIndex = 3;
+    const expectedMoves = Long.fromString('0x0', true, 16);
+
+    expect(
+      getPawn({
+        blackOccupiedBits,
+        whiteOccupiedBits,
+        occupiedBits,
+        fromBitIndex,
+        color,
+        check,
+        checkingRays,
+        doubleCheck,
+        pinned,
+        friendlyKing,
+        elPassant,
+      })
+    ).toEqual(expectedMoves);
+  });
+  it('Pawn is absolutely pinned from W', () => {
+    loadFEN('k7/8/8/8/8/8/8/2r2P1K w - - 0 1');
+    const { gameState, elPassant, check, checkingRays, doubleCheck, pinned } =
+      getState();
+    const blackOccupiedBits = gameState.reduce((acc, curr, i) => {
+      if (i % 2 === 0) return acc;
+      return acc.or(curr);
+    }, Long.UZERO);
+    const occupiedBits = gameState.reduce(
+      (acc, curr) => acc.or(curr),
+      Long.UZERO
+    );
+    const color: Color = 'w';
+    const whiteOccupiedBits = occupiedBits.xor(blackOccupiedBits);
+    const fromBitIndex = 2;
+    const expectedMoves = Long.fromString('0x0', true, 16);
+    const friendlyKing = gameState[10];
+
+    expect(
+      getPawn({
+        blackOccupiedBits,
+        whiteOccupiedBits,
+        occupiedBits,
+        fromBitIndex,
+        color,
+        check,
+        checkingRays,
+        doubleCheck,
+        pinned,
+        friendlyKing,
+        elPassant,
+      })
+    ).toEqual(expectedMoves);
+  });
+  it('Pawn is absolutely pinned from NE', () => {
+    loadFEN('k7/8/8/8/7b/8/5P2/4K3 w - - 0 1');
+    const color: Color = 'w';
+    const { gameState, elPassant, check, checkingRays, doubleCheck, pinned } =
+      getState();
+    const blackOccupiedBits = gameState.reduce((acc, curr, i) => {
+      if (i % 2 === 0) return acc;
+      return acc.or(curr);
+    }, Long.UZERO);
+    const occupiedBits = gameState.reduce(
+      (acc, curr) => acc.or(curr),
+      Long.UZERO
+    );
+    const friendlyKing = gameState[10];
+
+    const whiteOccupiedBits = occupiedBits.xor(blackOccupiedBits);
+    const fromBitIndex = 10;
+    const expectedMoves = Long.fromString('0x0', true, 16);
+
+    expect(
+      getPawn({
+        blackOccupiedBits,
+        whiteOccupiedBits,
+        occupiedBits,
+        fromBitIndex,
+        color,
+        check,
+        checkingRays,
+        doubleCheck,
+        pinned,
+        friendlyKing,
+        elPassant,
+      })
+    ).toEqual(expectedMoves);
+  });
+  it('Pawn is absolutely pinned from SE', () => {
+    loadFEN('k7/8/8/8/8/5K2/6P1/7q w - - 0 1');
+    const {
+      gameState: startState,
+      elPassant,
+      check,
+      checkingRays,
+      doubleCheck,
+      pinned,
+    } = getState();
+    const blackOccupiedBits = startState.reduce((acc, curr, i) => {
+      if (i % 2 === 0) return acc;
+      return acc.or(curr);
+    }, Long.UZERO);
+    const occupiedBits = startState.reduce(
+      (acc, curr) => acc.or(curr),
+      Long.UZERO
+    );
+    const whiteOccupiedBits = occupiedBits.xor(blackOccupiedBits);
+    const color: Color = 'w';
+    const friendlyKing = startState[10];
+
+    const fromBitIndex = 10;
+    const expectedMoves = Long.fromString('0x0', true, 16);
+
+    expect(
+      getPawn({
+        blackOccupiedBits,
+        whiteOccupiedBits,
+        occupiedBits,
+        fromBitIndex,
+        color,
+        check,
+        checkingRays,
+        doubleCheck,
+        pinned,
+        friendlyKing,
+        elPassant,
+      })
+    ).toEqual(expectedMoves);
+  });
+  it('Pawn is absolutely pinned from SW', () => {
+    loadFEN('k7/8/8/8/8/7K/6P1/5q2 w - - 0 1');
+    const {
+      gameState: startState,
+      elPassant,
+      check,
+      checkingRays,
+      doubleCheck,
+      pinned,
+    } = getState();
+    const blackOccupiedBits = startState.reduce((acc, curr, i) => {
+      if (i % 2 === 0) return acc;
+      return acc.or(curr);
+    }, Long.UZERO);
+    const occupiedBits = startState.reduce(
+      (acc, curr) => acc.or(curr),
+      Long.UZERO
+    );
+    const whiteOccupiedBits = occupiedBits.xor(blackOccupiedBits);
+    const color: Color = 'w';
+    const friendlyKing = startState[10];
+
+    const fromBitIndex = 9;
+    const expectedMoves = Long.fromString('0x0', true, 16);
+
+    expect(
+      getPawn({
+        blackOccupiedBits,
+        whiteOccupiedBits,
+        occupiedBits,
+        fromBitIndex,
+        color,
+        check,
+        checkingRays,
+        doubleCheck,
+        pinned,
+        friendlyKing,
+        elPassant,
+      })
+    ).toEqual(expectedMoves);
+  });
+});
+//--------------------------------------------------------/
+//PartiallyPinned
+//--------------------------------------------------------/
+describe('bishop partially pinned', () => {
+  it('should return attack to pinner when pinner is in diagonal', () => {
+    loadFEN('k7/8/8/2K5/3B4/8/5b2/8 w - - 0 1');
+    const {
+      gameState: startState,
+      elPassant,
+      check,
+      checkingRays,
+      doubleCheck,
+      pinned,
+    } = getState();
+    const blackOccupiedBits = startState.reduce((acc, curr, i) => {
+      if (i % 2 === 0) return acc;
+      return acc.or(curr);
+    }, Long.UZERO);
+    const occupiedBits = startState.reduce(
+      (acc, curr) => acc.or(curr),
+      Long.UZERO
+    );
+    const whiteOccupiedBits = occupiedBits.xor(blackOccupiedBits);
+    const friendlyKing = startState[10];
+    const color: Color = 'w';
+
+    const fromBitIndex = startState[4].countTrailingZeros();
+
+    const expectedMoves = Long.fromString('80400', true, 16);
+    const result = getBishop({
+      blackOccupiedBits,
+      whiteOccupiedBits,
       occupiedBits,
       fromBitIndex,
-    };
-    const r = rookLegalAttacks(params);
-    expect(r).toEqual(expectedMoves);
+      color,
+      check,
+      checkingRays,
+      doubleCheck,
+      pinned,
+      friendlyKing,
+    });
+
+    expect(result).toEqual(expectedMoves);
+  });
+
+  it('should return attack to pinner when pinner is in diagonal', () => {
+    loadFEN('k7/8/5b2/8/3B4/2K5/8/8 w - - 0 1');
+    const {
+      gameState: startState,
+      elPassant,
+      check,
+      checkingRays,
+      doubleCheck,
+      pinned,
+    } = getState();
+    const blackOccupiedBits = startState.reduce((acc, curr, i) => {
+      if (i % 2 === 0) return acc;
+      return acc.or(curr);
+    }, Long.UZERO);
+    const occupiedBits = startState.reduce(
+      (acc, curr) => acc.or(curr),
+      Long.UZERO
+    );
+    const whiteOccupiedBits = occupiedBits.xor(blackOccupiedBits);
+    const color: Color = 'w';
+    const friendlyKing = startState[10];
+
+    const fromBitIndex = startState[4].countTrailingZeros();
+
+    const expectedMoves = Long.fromString('40800000000', true, 16);
+    const result = getBishop({
+      blackOccupiedBits,
+      whiteOccupiedBits,
+      occupiedBits,
+      fromBitIndex,
+      color,
+      check,
+      checkingRays,
+      doubleCheck,
+      pinned,
+      friendlyKing,
+    });
+
+    expect(result).toEqual(expectedMoves);
+  });
+  it('should return zero possible moves for white bishop when its being absolutely pinned from east with Queen', () => {
+    loadFEN('k7/8/8/2b5/3B4/8/5K2/8 w - - 0 1');
+    const {
+      gameState: startState,
+      elPassant,
+      check,
+      checkingRays,
+      doubleCheck,
+      pinned,
+    } = getState();
+    const blackOccupiedBits = startState.reduce((acc, curr, i) => {
+      if (i % 2 === 0) return acc;
+      return acc.or(curr);
+    }, Long.UZERO);
+    const occupiedBits = startState.reduce(
+      (acc, curr) => acc.or(curr),
+      Long.UZERO
+    );
+    const whiteOccupiedBits = occupiedBits.xor(blackOccupiedBits);
+    const color: Color = 'w';
+    const friendlyKing = startState[10];
+    const expectedMoves = Long.fromString('2000000000', true, 16);
+    const fromBitIndex = startState[4].countTrailingZeros();
+
+    expect(
+      getBishop({
+        blackOccupiedBits,
+        whiteOccupiedBits,
+        occupiedBits,
+        fromBitIndex,
+        color,
+        check,
+        checkingRays,
+        doubleCheck,
+        pinned,
+        friendlyKing,
+      })
+    ).toEqual(expectedMoves);
+  });
+});
+describe('rook partially pinned', () => {
+  it('should return attack for pinner S', () => {
+    loadFEN('k7/8/8/4K3/8/4R3/8/4r3 w - - 0 1');
+    const {
+      gameState: startState,
+      elPassant,
+      check,
+      checkingRays,
+      doubleCheck,
+      pinned,
+    } = getState();
+    const blackOccupiedBits = startState.reduce((acc, curr, i) => {
+      if (i % 2 === 0) return acc;
+      return acc.or(curr);
+    }, Long.UZERO);
+    const occupiedBits = startState.reduce(
+      (acc, curr) => acc.or(curr),
+      Long.UZERO
+    );
+    const whiteOccupiedBits = occupiedBits.xor(blackOccupiedBits);
+    const color: Color = 'w';
+    const friendlyKing = startState[10];
+    const fromBitIndex = startState[2].countTrailingZeros();
+    const expectedMoves = Long.fromString('808', true, 16);
+
+    expect(
+      getRook({
+        blackOccupiedBits,
+        whiteOccupiedBits,
+        occupiedBits,
+        fromBitIndex,
+        color,
+        check,
+        checkingRays,
+        doubleCheck,
+        pinned,
+        friendlyKing,
+      })
+    ).toEqual(expectedMoves);
+  });
+  it('should return attack for pinner N', () => {
+    loadFEN('k7/8/8/4r3/8/4R3/8/4K3 w - - 0 1');
+    const {
+      gameState: startState,
+      elPassant,
+      check,
+      checkingRays,
+      doubleCheck,
+      pinned,
+    } = getState();
+    const blackOccupiedBits = startState.reduce((acc, curr, i) => {
+      if (i % 2 === 0) return acc;
+      return acc.or(curr);
+    }, Long.UZERO);
+    const occupiedBits = startState.reduce(
+      (acc, curr) => acc.or(curr),
+      Long.UZERO
+    );
+    const whiteOccupiedBits = occupiedBits.xor(blackOccupiedBits);
+    const color: Color = 'w';
+    const friendlyKing = startState[10];
+    const fromBitIndex = startState[2].countTrailingZeros();
+    const expectedMoves = Long.fromString('808000000', true, 16);
+
+    expect(
+      getRook({
+        blackOccupiedBits,
+        whiteOccupiedBits,
+        occupiedBits,
+        fromBitIndex,
+        color,
+        check,
+        checkingRays,
+        doubleCheck,
+        pinned,
+        friendlyKing,
+      })
+    ).toEqual(expectedMoves);
+  });
+  it('should return attack for pinner, E', () => {
+    loadFEN('k7/8/8/r1R1K3/8/8/8/8 w - - 0 1');
+    const {
+      gameState: startState,
+      elPassant,
+      check,
+      checkingRays,
+      doubleCheck,
+      pinned,
+    } = getState();
+    const blackOccupiedBits = startState.reduce((acc, curr, i) => {
+      if (i % 2 === 0) return acc;
+      return acc.or(curr);
+    }, Long.UZERO);
+    const occupiedBits = startState.reduce(
+      (acc, curr) => acc.or(curr),
+      Long.UZERO
+    );
+    const whiteOccupiedBits = occupiedBits.xor(blackOccupiedBits);
+    const color: Color = 'w';
+    const friendlyKing = startState[10];
+    const fromBitIndex = startState[2].countTrailingZeros();
+    const expectedMoves = Long.fromString('c000000000', true, 16);
+
+    expect(
+      getRook({
+        blackOccupiedBits,
+        whiteOccupiedBits,
+        occupiedBits,
+        fromBitIndex,
+        color,
+        check,
+        checkingRays,
+        doubleCheck,
+        pinned,
+        friendlyKing,
+      })
+    ).toEqual(expectedMoves);
+  });
+  it('should return attack for pinner W', () => {
+    loadFEN('k7/8/8/K1R1r3/8/8/8/8 w - - 0 1');
+    const {
+      gameState: startState,
+      elPassant,
+      check,
+      checkingRays,
+      doubleCheck,
+      pinned,
+    } = getState();
+    const blackOccupiedBits = startState.reduce((acc, curr, i) => {
+      if (i % 2 === 0) return acc;
+      return acc.or(curr);
+    }, Long.UZERO);
+    const occupiedBits = startState.reduce(
+      (acc, curr) => acc.or(curr),
+      Long.UZERO
+    );
+    const whiteOccupiedBits = occupiedBits.xor(blackOccupiedBits);
+    const color: Color = 'w';
+    const friendlyKing = startState[10];
+    const fromBitIndex = startState[2].countTrailingZeros();
+    const expectedMoves = Long.fromString('1800000000', true, 16);
+
+    expect(
+      getRook({
+        blackOccupiedBits,
+        whiteOccupiedBits,
+        occupiedBits,
+        fromBitIndex,
+        color,
+        check,
+        checkingRays,
+        doubleCheck,
+        pinned,
+        friendlyKing,
+      })
+    ).toEqual(expectedMoves);
+  });
+});
+describe('pawn partially pinned', () => {
+  it('pawn can move forwards when pinned from S', () => {
+    loadFEN('k7/8/8/4K3/8/4P3/8/4r3 w - - 0 1');
+    const {
+      gameState: startState,
+      elPassant,
+      check,
+      checkingRays,
+      doubleCheck,
+      pinned,
+    } = getState();
+    const blackOccupiedBits = startState.reduce((acc, curr, i) => {
+      if (i % 2 === 0) return acc;
+      return acc.or(curr);
+    }, Long.UZERO);
+    const occupiedBits = startState.reduce(
+      (acc, curr) => acc.or(curr),
+      Long.UZERO
+    );
+    const whiteOccupiedBits = occupiedBits.xor(blackOccupiedBits);
+    const color: Color = 'w';
+    const fromBitIndex = startState[0].countTrailingZeros();
+    const friendlyKing = startState[10];
+    const expectedMoves = Long.fromString('8000000', true, 16);
+
+    expect(
+      getPawn({
+        blackOccupiedBits,
+        whiteOccupiedBits,
+        occupiedBits,
+        fromBitIndex,
+        color,
+        check,
+        checkingRays,
+        doubleCheck,
+        pinned,
+        friendlyKing,
+        elPassant,
+      })
+    ).toEqual(expectedMoves);
+  });
+  it('pawn can move forwards when pinned from N', () => {
+    loadFEN('k7/4r3/8/4P3/8/4K3/8/8 w - - 0 1');
+    const {
+      gameState: startState,
+      elPassant,
+      check,
+      checkingRays,
+      doubleCheck,
+      pinned,
+    } = getState();
+    const blackOccupiedBits = startState.reduce((acc, curr, i) => {
+      if (i % 2 === 0) return acc;
+      return acc.or(curr);
+    }, Long.UZERO);
+    const occupiedBits = startState.reduce(
+      (acc, curr) => acc.or(curr),
+      Long.UZERO
+    );
+    const whiteOccupiedBits = occupiedBits.xor(blackOccupiedBits);
+    const color: Color = 'w';
+    const fromBitIndex = startState[0].countTrailingZeros();
+    const friendlyKing = startState[10];
+    const expectedMoves = Long.fromString('80000000000', true, 16);
+
+    expect(
+      getPawn({
+        blackOccupiedBits,
+        whiteOccupiedBits,
+        occupiedBits,
+        fromBitIndex,
+        color,
+        check,
+        checkingRays,
+        doubleCheck,
+        pinned,
+        friendlyKing,
+        elPassant,
+      })
+    ).toEqual(expectedMoves);
+  });
+  it('Pawn can eat pinner', () => {
+    loadFEN('k7/6q1/5P2/4K3/8/8/8/8 w - - 0 1');
+    const {
+      gameState: startState,
+      elPassant,
+      check,
+      checkingRays,
+      doubleCheck,
+      pinned,
+    } = getState();
+    const blackOccupiedBits = startState.reduce((acc, curr, i) => {
+      if (i % 2 === 0) return acc;
+      return acc.or(curr);
+    }, Long.UZERO);
+    const occupiedBits = startState.reduce(
+      (acc, curr) => acc.or(curr),
+      Long.UZERO
+    );
+    const whiteOccupiedBits = occupiedBits.xor(blackOccupiedBits);
+    const color: Color = 'w';
+    const fromBitIndex = startState[0].countTrailingZeros();
+    const friendlyKing = startState[10];
+    const expectedMoves = Long.fromString('2000000000000', true, 16);
+
+    expect(
+      getPawn({
+        blackOccupiedBits,
+        whiteOccupiedBits,
+        occupiedBits,
+        fromBitIndex,
+        color,
+        check,
+        checkingRays,
+        doubleCheck,
+        pinned,
+        friendlyKing,
+        elPassant,
+      })
+    ).toEqual(expectedMoves);
+  });
+  it('Pawn can eat pinner', () => {
+    loadFEN('k7/4q3/5P2/6K1/8/8/8/8 w - - 0 1');
+    const {
+      gameState: startState,
+      elPassant,
+      check,
+      checkingRays,
+      doubleCheck,
+      pinned,
+    } = getState();
+    const blackOccupiedBits = startState.reduce((acc, curr, i) => {
+      if (i % 2 === 0) return acc;
+      return acc.or(curr);
+    }, Long.UZERO);
+    const occupiedBits = startState.reduce(
+      (acc, curr) => acc.or(curr),
+      Long.UZERO
+    );
+    const whiteOccupiedBits = occupiedBits.xor(blackOccupiedBits);
+    const color: Color = 'w';
+    const fromBitIndex = startState[0].countTrailingZeros();
+    const friendlyKing = startState[10];
+    const expectedMoves = Long.fromString('8000000000000', true, 16);
+
+    expect(
+      getPawn({
+        blackOccupiedBits,
+        whiteOccupiedBits,
+        occupiedBits,
+        fromBitIndex,
+        color,
+        check,
+        checkingRays,
+        doubleCheck,
+        pinned,
+        friendlyKing,
+        elPassant,
+      })
+    ).toEqual(expectedMoves);
+  });
+});
+//--------------------------------------------------------/
+//Check but piece can move within rules
+//--------------------------------------------------------/
+describe('isCheck and piece can come to block attack', () => {
+  it('own pawn can block check', () => {
+    loadFEN('k7/8/6K1/8/4qP2/8/8/8 w - - 0 1');
+
+    const r1 = getState();
+    const blackOccupiedBits = r1.gameState.reduce((acc, curr, i) => {
+      if (i % 2 === 0) return acc;
+      return acc.or(curr);
+    }, Long.UZERO);
+    const occupiedBits = r1.gameState.reduce(
+      (acc, curr) => acc.or(curr),
+      Long.UZERO
+    );
+    const whiteOccupiedBits = occupiedBits.xor(blackOccupiedBits);
+    const color: Color = 'w';
+    const fromBitIndex = r1.gameState[0].countTrailingZeros();
+    const friendlyKing = r1.gameState[10];
+
+    const expectedMoves = Long.fromString('400000000', true, 16);
+    expect(r1.check).toEqual(true);
+    expect(r1.doubleCheck).toEqual(false);
+    expect(r1.mate).toEqual(false);
+
+    expect(
+      getPawn({
+        whiteOccupiedBits,
+        fromBitIndex,
+        blackOccupiedBits,
+        occupiedBits,
+        color,
+        friendlyKing,
+        check: r1.check,
+        elPassant: r1.elPassant,
+        pinned: r1.pinned,
+        checkingRays: r1.checkingRays,
+        doubleCheck: r1.doubleCheck,
+      })
+    ).toEqual(expectedMoves);
+    //piece cannot move incase of doubleCheck
+  });
+  it('own bishop can block check', () => {
+    loadFEN('k7/8/4B1K1/8/4q3/8/8/8 w - - 0 1');
+
+    const r1 = getState();
+    const blackOccupiedBits = r1.gameState.reduce((acc, curr, i) => {
+      if (i % 2 === 0) return acc;
+      return acc.or(curr);
+    }, Long.UZERO);
+    const occupiedBits = r1.gameState.reduce(
+      (acc, curr) => acc.or(curr),
+      Long.UZERO
+    );
+    const whiteOccupiedBits = occupiedBits.xor(blackOccupiedBits);
+    const color: Color = 'w';
+    const fromBitIndex = r1.gameState[4].countTrailingZeros();
+    const friendlyKing = r1.gameState[10];
+
+    const expectedMoves = Long.fromString('400000000', true, 16);
+
+    expect(r1.check).toEqual(true);
+    expect(r1.doubleCheck).toEqual(false);
+    expect(r1.mate).toEqual(false);
+
+    expect(
+      getBishop({
+        whiteOccupiedBits,
+        fromBitIndex,
+        blackOccupiedBits,
+        occupiedBits,
+        color,
+        friendlyKing,
+        check: r1.check,
+        pinned: r1.pinned,
+        checkingRays: r1.checkingRays,
+        doubleCheck: r1.doubleCheck,
+      })
+    ).toEqual(expectedMoves);
+  });
+
+  it('own rook can block check', () => {
+    loadFEN('k7/8/6K1/8/4q3/8/8/5R2 w - - 0 1');
+
+    const r1 = getState();
+    const blackOccupiedBits = r1.gameState.reduce((acc, curr, i) => {
+      if (i % 2 === 0) return acc;
+      return acc.or(curr);
+    }, Long.UZERO);
+    const occupiedBits = r1.gameState.reduce(
+      (acc, curr) => acc.or(curr),
+      Long.UZERO
+    );
+    const whiteOccupiedBits = occupiedBits.xor(blackOccupiedBits);
+    const color: Color = 'w';
+    const fromBitIndex = r1.gameState[2].countTrailingZeros();
+    const friendlyKing = r1.gameState[10];
+    const expectedMoves = Long.fromString('400000000', true, 16);
+    expect(r1.check).toEqual(true);
+    expect(r1.doubleCheck).toEqual(false);
+    expect(r1.mate).toEqual(false);
+    expect(
+      getRook({
+        whiteOccupiedBits,
+        fromBitIndex,
+        blackOccupiedBits,
+        occupiedBits,
+        color,
+        friendlyKing,
+        check: r1.check,
+        pinned: r1.pinned,
+        checkingRays: r1.checkingRays,
+        doubleCheck: r1.doubleCheck,
+      })
+    ).toEqual(expectedMoves);
+  });
+  it('own knight can block check', () => {
+    loadFEN('k7/8/6K1/8/4q3/4N3/8/8 w - - 0 1');
+
+    const r1 = getState();
+    const blackOccupiedBits = r1.gameState.reduce((acc, curr, i) => {
+      if (i % 2 === 0) return acc;
+      return acc.or(curr);
+    }, Long.UZERO);
+    const occupiedBits = r1.gameState.reduce(
+      (acc, curr) => acc.or(curr),
+      Long.UZERO
+    );
+    const whiteOccupiedBits = occupiedBits.xor(blackOccupiedBits);
+    const color: Color = 'w';
+    const fromBitIndex = r1.gameState[6].countTrailingZeros();
+    const friendlyKing = r1.gameState[10];
+    const expectedMoves = Long.fromString('400000000', true, 16);
+
+    expect(r1.check).toEqual(true);
+    expect(r1.doubleCheck).toEqual(false);
+    expect(r1.mate).toEqual(false);
+    expect(
+      getKnight({
+        whiteOccupiedBits,
+        fromBitIndex,
+        blackOccupiedBits,
+        occupiedBits,
+        color,
+        friendlyKing,
+        check: r1.check,
+        pinned: r1.pinned,
+        checkingRays: r1.checkingRays,
+        doubleCheck: r1.doubleCheck,
+      })
+    ).toEqual(expectedMoves);
+  });
+});
+describe('isCheck and king can move to non attacked square', () => {
+  it('should return only non attacked squares', () => {
+    loadFEN('k7/8/6K1/4q3/8/8/8/8 w - - 0 1');
+    const { gameState: state, castling, check, doubleCheck, mate } = getState();
+
+    const blackOccupiedBits = state.reduce((acc, curr, i) => {
+      if (i % 2 === 0) return acc;
+      return acc.or(curr);
+    }, Long.UZERO);
+    const occupiedBits = state.reduce((acc, curr) => acc.or(curr), Long.UZERO);
+    const whiteOccupiedBits = occupiedBits.xor(blackOccupiedBits);
+    const color: Color = 'w';
+
+    const fromBitIndex = state[10].countTrailingZeros();
+
+    expect(check).toEqual(false);
+    expect(doubleCheck).toEqual(false);
+    expect(mate).toEqual(false);
+    const expectedMoves = Long.fromString('5010000000000', true, 16);
+    expect(
+      getKing({
+        color,
+        whiteOccupiedBits,
+        blackOccupiedBits,
+        occupiedBits,
+        fromBitIndex,
+        state,
+        castling,
+      })
+    ).toEqual(expectedMoves);
+  });
+  it('should return only non attacked squares', () => {
+    loadFEN('k3n1r1/8/6K1/8/4b3/8/8/8 w - - 0 1');
+    const { gameState: state, castling, check, doubleCheck, mate } = getState();
+
+    const blackOccupiedBits = state.reduce((acc, curr, i) => {
+      if (i % 2 === 0) return acc;
+      return acc.or(curr);
+    }, Long.UZERO);
+    const occupiedBits = state.reduce((acc, curr) => acc.or(curr), Long.UZERO);
+    const whiteOccupiedBits = occupiedBits.xor(blackOccupiedBits);
+    const color: Color = 'w';
+    const fromBitIndex = state[10].countTrailingZeros();
+
+    expect(check).toEqual(true);
+    expect(doubleCheck).toEqual(true);
+    expect(mate).toEqual(false);
+    const expectedMoves = Long.fromString('4010100000000', true, 16);
+
+    expect(
+      getKing({
+        color,
+        whiteOccupiedBits,
+        blackOccupiedBits,
+        occupiedBits,
+        fromBitIndex,
+        state,
+        castling,
+      })
+    ).toEqual(expectedMoves);
+  });
+  it('should return only non attacked squares', () => {
+    loadFEN('k2rr3/4K3/5r2/8/8/8/8/8 w - - 0 1');
+    const { gameState: state, castling, check, doubleCheck, mate } = getState();
+
+    const blackOccupiedBits = state.reduce((acc, curr, i) => {
+      if (i % 2 === 0) return acc;
+      return acc.or(curr);
+    }, Long.UZERO);
+    const occupiedBits = state.reduce((acc, curr) => acc.or(curr), Long.UZERO);
+    const whiteOccupiedBits = occupiedBits.xor(blackOccupiedBits);
+    const color: Color = 'w';
+
+    const fromBitIndex = state[10].countTrailingZeros();
+
+    expect(check).toEqual(true);
+    expect(doubleCheck).toEqual(false);
+    expect(mate).toEqual(false);
+    const expectedMoves = Long.fromString('40000000000', true, 16);
+
+    expect(
+      getKing({
+        color,
+        whiteOccupiedBits,
+        blackOccupiedBits,
+        occupiedBits,
+        fromBitIndex,
+        state,
+        castling,
+      })
+    ).toEqual(expectedMoves);
+  });
+});
+describe('subsetOfMaskThatIsNotAttacked', () => {
+  it('should return correct mask', () => {
+    loadFEN('k7/8/6K1/4q3/8/8/8/8 w - - 0 1');
+    const { gameState: state } = getState();
+    const occupiedBits = state.reduce((acc, curr) => acc.or(curr), Long.UZERO);
+    const color: Color = 'w';
+    const moveMask = Long.fromString('7050700000000', true, 16);
+    const expectedMoves = Long.fromString('5010000000000', true, 16);
+    expect(
+      subsetOfMaskThatIsNotAttacked({ moveMask, occupiedBits, color, state })
+    ).toEqual(expectedMoves);
   });
 });
 
-//**********************************PAWN*****************************************
-describe('pawnPseudoMoves', () => {
-  it('should return correct move mask for white pawn in start position', () => {
-    const fromBitIndex = 8;
-    const color = 'w';
-    const expectedMoveMask = Long.fromString('0x1010000', true, 16);
-
-    expect(pawnPseudoMoves({ fromBitIndex, color })).toEqual(expectedMoveMask);
-  });
-
-  it('should return correct move mask for black pawn in start position', () => {
-    const fromBitIndex = 48;
-    const color = 'b';
-    const expectedMoveMask = Long.fromString('0x10100000000', true, 16);
-    expect(pawnPseudoMoves({ fromBitIndex, color })).toEqual(expectedMoveMask);
-  });
-
-  it('should return correct move mask for white pawn not in start position', () => {
-    const fromBitIndex = 16;
-    const color = 'w';
-    const expectedMoveMask = Long.fromString('0x1000000', true, 16);
-
-    expect(pawnPseudoMoves({ fromBitIndex, color })).toEqual(expectedMoveMask);
-  });
-
-  it('should return correct move mask for black pawn not in start position', () => {
-    const fromBitIndex = 39;
-    const color = 'b';
-    const expectedMoveMask = Long.fromString('0x80000000', true, 16);
-
-    expect(pawnPseudoMoves({ fromBitIndex, color })).toEqual(expectedMoveMask);
-  });
-});
-
-describe('pawnPseudoAttacks', () => {
-  it('returns the correct attack moves for a black pawn on A7', () => {
-    const fromBitIndex = 55;
-    const color = 'b';
-    const expectedAttacks = Long.fromString('0x400000000000', true, 16);
-
-    expect(pawnPseudoAttacks({ fromBitIndex, color })).toEqual(expectedAttacks);
-  });
-
-  it('returns the correct attack moves for a black pawn on H7', () => {
-    const fromBitIndex = 48;
-    const color = 'b';
-    const expectedAttacks = Long.fromString('0x20000000000', true, 16);
-    expect(pawnPseudoAttacks({ fromBitIndex, color })).toEqual(expectedAttacks);
-  });
-
-  it('returns the correct attack moves for a white pawn on A2', () => {
-    const fromBitIndex = 15;
-    const color = 'w';
-    const expectedAttacks = Long.fromString('0x400000', true, 16);
-    expect(pawnPseudoAttacks({ fromBitIndex, color })).toEqual(expectedAttacks);
-  });
-
-  it('returns the correct attack moves for a white pawn on H2', () => {
-    const fromBitIndex = 8;
-    const color = 'w';
-    const expectedAttacks = Long.fromString('0x20000', true, 16);
-    expect(pawnPseudoAttacks({ fromBitIndex, color })).toEqual(expectedAttacks);
-  });
-  it('returns the correct attack moves for a black pawn on B7', () => {
-    const fromBitIndex = 54;
-    const color = 'b';
-    const expectedAttacks = Long.fromString('0xa00000000000', true, 16);
-    expect(pawnPseudoAttacks({ fromBitIndex, color })).toEqual(expectedAttacks);
-  });
-  it('returns the correct attack moves for a white pawn on B2', () => {
-    const fromBitIndex = 14;
-    const color = 'w';
-    const expectedAttacks = Long.fromString('0xa00000', true, 16);
-    expect(pawnPseudoAttacks({ fromBitIndex, color })).toEqual(expectedAttacks);
-  });
-});
-
-describe('pawnLegalMoves', () => {
-  it('returns correct legal moves for a black pawn in the starting position', () => {
-    const fromBitIndex = 48;
-    const color = 'b';
-    const enemyOccupied = Long.UZERO;
-    const occupiedSquares = Long.fromString('0x1000000000000', true, 16);
-    const expected = Long.fromString('0x10100000000', true, 16);
-    const elPassant = null;
-    expect(
-      pawnLegalMoves({
-        fromBitIndex,
-        color,
-        enemyOccupied,
-        occupiedSquares,
-        elPassant,
-      })
-    ).toEqual(expected);
-  });
-
-  it('returns correct legal moves for a white pawn in the starting position', () => {
-    const fromBitIndex = 8;
-    const color = 'w';
-    const enemyOccupied = Long.UZERO;
-    const occupiedSquares = Long.fromString('0x100', true, 16);
-    const expected = Long.fromString('0x1010000', true, 16);
-    const elPassant = null;
-    expect(
-      pawnLegalMoves({
-        fromBitIndex,
-        color,
-        enemyOccupied,
-        occupiedSquares,
-        elPassant,
-      })
-    ).toEqual(expected);
-  });
-
-  it('returns correct legal moves for a black pawn that can only capture enemy pieces', () => {
-    const fromBitIndex = 49;
-    const color = 'b';
-    const enemyOccupied = Long.fromString('0xff0000000000', true, 16);
-    const occupiedSquares = Long.fromString('0x2ff0000000000', true, 16);
-    const expected = Long.fromString('0x50000000000', true, 16);
-    const elPassant = null;
-    expect(
-      pawnLegalMoves({
-        fromBitIndex,
-        color,
-        enemyOccupied,
-        occupiedSquares,
-        elPassant,
-      })
-    ).toEqual(expected);
-  });
-
-  it('returns correct legal moves for a white pawn that can only capture enemy pieces', () => {
-    const fromBitIndex = 9;
-    const color = 'w';
-    const enemyOccupied = Long.fromString('0xff0000', true, 16);
-    const occupiedSquares = Long.fromString('0xff0200', true, 16);
-    const expected = Long.fromString('0x50000', true, 16);
-    const elPassant = null;
-    expect(
-      pawnLegalMoves({
-        fromBitIndex,
-        color,
-        enemyOccupied,
-        occupiedSquares,
-        elPassant,
-      })
-    ).toEqual(expected);
-  });
-
-  it('returns correct legal moves for a black pawn that is blocked from quiet move', () => {
-    const fromBitIndex = 49;
-    const color = 'b';
-    const enemyOccupied = Long.UZERO;
-    const occupiedSquares = Long.fromString('0x2020000000000', true, 16);
-    const expected = Long.fromString('0x0', true, 16);
-    const elPassant = null;
-    expect(
-      pawnLegalMoves({
-        fromBitIndex,
-        color,
-        enemyOccupied,
-        occupiedSquares,
-        elPassant,
-      })
-    ).toEqual(expected);
-  });
-
-  it('returns correct legal moves for a white pawn that is blocked from quiet move', () => {
-    const fromBitIndex = 9;
-    const color = 'w';
-    const enemyOccupied = Long.UZERO;
-    const occupiedSquares = Long.fromString('0x20200', true, 16);
-    const expected = Long.fromString('0x0', true, 16);
-    const elPassant = null;
+describe('squareIsAttacked', () => {
+  it('if pawn is attacking', () => {
+    loadFEN('k7/8/8/8/8/8/6p1/K7 w - - 0 1');
+    const { gameState: state } = getState();
+    const occupiedBits = state.reduce((acc, curr) => acc.or(curr), Long.UZERO);
+    const friendlyColor: Color = 'w';
+    const fromBitIndex = 0;
 
     expect(
-      pawnLegalMoves({
+      squareIsAttacked({
+        friendlyColor,
+        occupiedBits,
         fromBitIndex,
-        color,
-        enemyOccupied,
-        occupiedSquares,
-        elPassant,
+        state,
       })
-    ).toEqual(expected);
+    ).toEqual(true);
   });
-  it('returns correct legal moves for a white pawn that is in position to elpassant', () => {
-    const fromBitIndex = 37;
-    const color = 'w';
-    const enemyOccupied = Long.fromString('0xef001000000000', true, 16);
-    const occupiedSquares = Long.fromString('0xef003000000000', true, 16);
-    const expected = Long.fromString('0x300000000000', true, 16);
-    const elPassant = 44;
+  it('if own pawn is blocking queen attack', () => {
+    const friendlyColor: Color = 'b';
+
+    loadFEN('k7/8/8/8/4Q3/8/6p1/K7 b - - 0 1');
+    const { gameState: state } = getState();
+    const occupiedBits = state.reduce((acc, curr) => acc.or(curr), Long.UZERO);
+
+    const fromBitIndex = 0;
 
     expect(
-      pawnLegalMoves({
+      squareIsAttacked({
+        friendlyColor,
+        occupiedBits,
         fromBitIndex,
-        color,
-        enemyOccupied,
-        occupiedSquares,
-        elPassant,
+        state,
       })
-    ).toEqual(expected);
+    ).toEqual(false);
   });
-  it('returns correct legal moves for a white pawn that is in square to elpassant', () => {
-    const fromBitIndex = 45;
-    const color = 'w';
-    const enemyOccupied = Long.fromString('0xef001000000000', true, 16);
-    const occupiedSquares = Long.fromString('0xef201000000000', true, 16);
-    const expected = Long.fromString('0x40000000000000', true, 16);
-    const elPassant = 44;
-    expect(
-      pawnLegalMoves({
-        fromBitIndex,
-        color,
-        enemyOccupied,
-        occupiedSquares,
-        elPassant,
-      })
-    ).toEqual(expected);
-  });
-  it('returns correct legal moves for a black pawn that is in square to elpassant', () => {
-    const fromBitIndex = 27;
-    const color = 'b';
-    const enemyOccupied = Long.fromString('0x1000ef00', true, 16);
-    const occupiedSquares = Long.fromString('0x1800ef00', true, 16);
-    const expected = Long.fromString('0x180000', true, 16);
-    const elPassant = 20;
+
+  it('if own pawn is blocking but knight attacks over', () => {
+    loadFEN('k7/8/8/8/4Q3/6N1/6p1/K7 b - - 0 1');
+    const { gameState: state } = getState();
+    const occupiedBits = state.reduce((acc, curr) => acc.or(curr), Long.UZERO);
+
+    const friendlyColor: Color = 'b';
+
+    const fromBitIndex = 0;
 
     expect(
-      pawnLegalMoves({
+      squareIsAttacked({
+        friendlyColor,
+        occupiedBits,
         fromBitIndex,
-        color,
-        enemyOccupied,
-        occupiedSquares,
-        elPassant,
+        state,
       })
-    ).toEqual(expected);
+    ).toEqual(true);
   });
 });

@@ -6,16 +6,16 @@ export const loadFEN = (Fen: string) => {
   const splittedFen = Fen.split(' ');
   if (splittedFen.length != 6) throw new Error('Fen not in correct form');
 
-  const fstate = splittedFen[0] as string;
-  const fturn = splittedFen[1] as 'w' | 'b';
-  const fcastling = splittedFen[2] as string;
-  const fElPassant = splittedFen[3] as keyof typeof SquareBit;
-  const fhalfMoves = splittedFen[4] as string;
-  const ffullMoves = splittedFen[5] as string;
+  const state = splittedFen[0] as string;
+  const turn = splittedFen[1] as 'w' | 'b';
+  const castling = splittedFen[2] as string;
+  const elPassant = splittedFen[3] as keyof typeof SquareBit;
+  const halfMoves = splittedFen[4] as string;
+  const fullMoves = splittedFen[5] as string;
 
-  if (!isNumeric(ffullMoves))
+  if (!isNumeric(fullMoves))
     throw new Error('Fen fullMoves notated incorrectly');
-  if (!isNumeric(fhalfMoves))
+  if (!isNumeric(halfMoves))
     throw new Error('Fen halfMoves notated incorrectly');
 
   //iterate fen
@@ -36,7 +36,7 @@ export const loadFEN = (Fen: string) => {
     }
 
     const { piece, bitIndex } = prop;
-    const bitOperator = new Long(1, 0x0, true).shiftLeft(bitIndex);
+    const bitOperator = Long.UONE.shiftLeft(bitIndex);
     switch (piece) {
       case 'P':
         newGame[0] = newGame[0].or(bitOperator);
@@ -77,7 +77,7 @@ export const loadFEN = (Fen: string) => {
     }
   };
   let i = 63;
-  for (let c of fstate) {
+  for (let c of state) {
     if (c === '/') {
       continue;
     }
@@ -92,11 +92,11 @@ export const loadFEN = (Fen: string) => {
   }
   setFEN(
     newGame,
-    SquareBit[fElPassant],
-    fcastling,
-    Number(fhalfMoves),
-    Number(ffullMoves),
-    fturn
+    SquareBit[elPassant],
+    castling,
+    Number(halfMoves),
+    Number(fullMoves),
+    turn
   );
   return getState();
 };

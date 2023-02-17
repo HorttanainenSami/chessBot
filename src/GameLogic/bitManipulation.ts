@@ -1,5 +1,5 @@
 import Long from 'long';
-import { getinBetween } from './move';
+import { moveMask as moveHelper } from './moveMask';
 
 /**
  *remove all set bits behind blocked square in movemask used only to W,N,NW directions
@@ -17,7 +17,7 @@ export function removeBlockedMovesForward(
 ) {
   const blockingPieceIndex = bitScanForward(from, moveMask, occupied);
   if (blockingPieceIndex === -1) return moveMask;
-  const maskBetween = getinBetween(from, blockingPieceIndex);
+  const maskBetween = moveHelper.inBetween(from, blockingPieceIndex);
   if (maskBetween === null) return moveMask;
 
   return removeBlockers
@@ -40,7 +40,7 @@ export function removeBlockedMovesBackwards(
 ) {
   const blockingPieceIndex = bitScanBackwards(from, moveMask, occupied);
   if (blockingPieceIndex === -1) return moveMask;
-  const maskBetween = getinBetween(from, blockingPieceIndex);
+  const maskBetween = moveHelper.inBetween(from, blockingPieceIndex);
   if (maskBetween === null) return moveMask;
   return removeBlockers
     ? maskBetween.and(Long.UONE.shl(blockingPieceIndex).not())

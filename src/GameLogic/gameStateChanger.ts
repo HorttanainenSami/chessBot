@@ -1,25 +1,9 @@
 import Long from 'long';
 import { Color, Move } from '../Types';
-import {
-  pawnLegalMoves,
-  kingLegalMoves,
-  rookLegalMoves,
-  bishopLegalMoves,
-  knightPseudoMoves,
-  getObstructed,
-  getinBetween,
-  moveMask,
-  pawnPseudoMoves,
-  pawnLegalAttacks,
-  pawnPseudoAttacks,
-  bishopAttacks,
-  rookLegalAttacks,
-} from './move';
-import {
-  removeBlockedMovesForward,
-  removeBlockedMovesBackwards,
-} from './bitManipulation';
+import { bishopAttacks, moveMask, rookLegalAttacks } from './moveMask';
+
 import { SquareBit, bitPieces, logger } from './helpers';
+import { getMoves, kingIsAttackedFrom } from './move';
 export let gameState: Long[] = [
   //pawns
   Long.fromString('0xff00', true, 16), //w
@@ -42,8 +26,8 @@ export let gameState: Long[] = [
 ];
 export let elPassant: SquareBit | null = null;
 export let pinned: Long = Long.UZERO;
-export let checked = false;
-export let doubleChecked = false;
+export let check = false;
+export let doubleCheck = false;
 export let checkingRays = Long.UZERO;
 export let mate = false;
 export let turn: Color = 'w';
@@ -79,81 +63,169 @@ export function reset() {
   ];
   elPassant = null;
   pinned = Long.UZERO;
-  checked = false;
-  doubleChecked = false;
+  check = false;
+  doubleCheck = false;
   checkingRays = Long.UZERO;
   mate = false;
   turn = 'w';
 }
-export const getState = () => ({
+export interface state {
+  gameState: Long[];
+  pinned: Long;
+  check: boolean;
+  doubleCheck: boolean;
+  checkingRays: Long;
+  mate: boolean;
+  turn: Color;
+  elPassant: SquareBit | null;
+  halfMove: number;
+  fullMove: number;
+  castling: string;
+}
+export const getState = (): state => ({
   gameState,
   pinned,
-  checked,
-  doubleChecked,
+  check,
+  doubleCheck,
   checkingRays,
   mate,
   turn,
   elPassant,
   halfMove,
   fullMove,
-  castling,
+  castling: castling,
 });
+export const getUpdatedState = ({
+  move,
+  state,
+}: {
+  move: Move;
+  state: state;
+}): state => {
+  let initialGameState = state.gameState;
+  let initialPinned = state.pinned;
+  let initialCheck = state.check;
+  let initialDoubleCheck = state.doubleCheck;
+  let initialCheckingRays = state.checkingRays;
+  let initialMate = state.mate;
+  let initialTurn = state.turn;
+  let initialElPassant = state.elPassant;
+  let initialHalfMove = state.halfMove;
+  let initialFullMove = state.fullMove;
+  let initialCastling = state.castling;
 
-export const updateGameState = ({ piece, color, from, to }: Move) => {
+  const { piece, to, from, color } = move;
   const toBitIndex = SquareBit[to];
   const fromBitIndex = SquareBit[from];
-  let moveBoard = gameState[piece] as Long;
-  let modifiedGameState = gameState;
-  //update moved piece
-
   const toMask = Long.UONE.shiftLeft(toBitIndex);
   const fromMask = Long.UONE.shiftLeft(fromBitIndex);
-  moveBoard = moveBoard.and(fromMask.not());
-  moveBoard = moveBoard.or(toMask);
+  //TODO make castle
+
+  //if piece moved is king or rook remove castling
+  if (piece === 10) {
+    initialCastling = initialCastling.replace('KQ', '');
+  }
+  if (piece === 11) {
+    initialCastling = initialCastling.replace('kq', '');
+  }
+  if (piece === 2) {
+    initialCastling = initialCastling.replace('K', '');
+    initialCastling = initialCastling.replace('Q', '');
+  }
+  if (piece === 3) {
+    initialCastling = initialCastling.replace('k', '');
+    initialCastling = initialCastling.replace('q', '');
+  }
+  //TODO if move is rook remove castling rights of that side rook
+
+  //make move
+  initialGameState[piece] = initialGameState[piece].and(fromMask.not());
+  initialGameState[piece] = initialGameState[piece].or(toMask);
   //remove captured pieces
   const elPassantCapture = checkIfElpassant(toBitIndex, piece);
   const deletedPieces = elPassantCapture
-    ? removeCapturedPiece(elPassantCapture.square, color)
-    : removeCapturedPiece(toBitIndex, color);
+    ? removeCapturedPiece(elPassantCapture.square, color, initialGameState)
+    : removeCapturedPiece(toBitIndex, color, initialGameState);
   //if pawn moves to last rank it will be promoted to Queen
   if (piece === 1 && ~~(toBitIndex / 8) === 0) {
-    modifiedGameState[9] = modifiedGameState[9].or(toMask);
-    moveBoard = moveBoard.and(toMask.not());
+    initialGameState[9] = initialGameState[9].or(toMask);
+    initialGameState[piece] = initialGameState[piece].and(toMask.not());
   }
   if (piece === 0 && ~~(toBitIndex / 8) === 7) {
-    modifiedGameState[8] = modifiedGameState[8].or(toMask);
-    moveBoard = moveBoard.and(toMask.not());
+    initialGameState[8] = initialGameState[8].or(toMask);
+    initialGameState[piece] = initialGameState[piece].and(toMask.not());
   }
-  //make castle
 
   //set/remove elpassant
   if ((piece === 1 || piece === 0) && (fromBitIndex - toBitIndex) % 16 === 0) {
     const elPassantSquare = color === 'w' ? fromBitIndex + 8 : fromBitIndex - 8;
-    setElPassant(elPassantSquare);
+    initialElPassant = elPassantSquare;
   } else {
-    setElPassant(null);
+    initialElPassant = null;
   }
 
   //final state changes
 
-  const newTurn = turn === 'b' ? 'w' : 'b';
   if (deletedPieces) {
-    modifiedGameState[deletedPieces.i] = deletedPieces.pieces;
+    initialGameState[deletedPieces.i] = deletedPieces.pieces;
   }
-  modifiedGameState[piece] = moveBoard;
-
-  changeGameState(modifiedGameState);
+  // changeGameState(modifiedGameState, newTurn);
   //set if pawn moved or piece captured to 0 otherwise increment
   if (piece === 1 || piece === 0 || deletedPieces) {
-    setHalfMove(0);
+    initialHalfMove = 0;
   } else {
-    setHalfMove(halfMove + 1);
+    initialHalfMove += 1;
   }
 
-  if (turn === 'b') {
-    setFullMove(fullMove + 1);
+  if (initialTurn === 'b') {
+    initialFullMove += 1;
   }
-  setTurn(newTurn);
+  initialTurn = initialTurn === 'b' ? 'w' : 'b';
+  const { check, doubleCheck, checkingRays } = isCheck({
+    color: initialTurn,
+    state: initialGameState,
+  });
+  const { pinned } = calculatePinned(initialTurn);
+  initialCheck = check;
+  initialDoubleCheck = doubleCheck;
+  initialPinned = pinned;
+  initialCheckingRays = checkingRays;
+  const object = {
+    gameState: initialGameState,
+    pinned: initialPinned,
+    check: initialCheck,
+    doubleCheck: initialDoubleCheck,
+    checkingRays: initialCheckingRays,
+    mate: initialMate,
+    turn: initialTurn,
+    elPassant: initialElPassant,
+    halfMove: initialHalfMove,
+    fullMove: initialFullMove,
+    castling: initialCastling,
+  };
+
+  const mate = isMate({ color, state: object });
+  object.mate = mate;
+  console.log(mate, object.mate);
+  return object;
+};
+/**
+ * should be used to update gamestate, when making move
+ * @param move front end apis given data
+ */
+export const updateGameState = (move: Move) => {
+  const s = getUpdatedState({ move, state: getState() });
+  gameState = s.gameState;
+  pinned = s.pinned;
+  check = s.check;
+  doubleCheck = s.doubleCheck;
+  checkingRays = s.checkingRays;
+  mate = s.mate;
+  turn = s.turn;
+  elPassant = s.elPassant;
+  halfMove = s.halfMove;
+  fullMove = s.fullMove;
+  castling = s.castling;
 };
 
 export const checkIfElpassant = (toBitIndex: number, piece: bitPieces) => {
@@ -172,12 +244,16 @@ export const checkIfElpassant = (toBitIndex: number, piece: bitPieces) => {
   }
 };
 
-export const removeCapturedPiece = (fromBitIndex: number, color: Color) => {
+export const removeCapturedPiece = (
+  fromBitIndex: number,
+  color: Color,
+  state = gameState
+) => {
   // white pieces is even and black odd in gamestate Array so we need to set this even for black odd
   const forHelper = color === 'w' ? 1 : 0;
   const capturedPiece = Long.UONE.shiftLeft(fromBitIndex);
-  for (let i = forHelper; i < gameState.length; i += 2) {
-    let pieces = gameState[i] as Long;
+  for (let i = forHelper; i < state.length; i += 2) {
+    let pieces = state[i] as Long;
     if (!capturedPiece.and(pieces).isZero()) {
       pieces = pieces.and(capturedPiece.not());
       return { i, pieces };
@@ -192,69 +268,45 @@ export const makeMove = (props: Move) => {
   return updateGameState(props);
 };
 
-export const getMoves = (color: Color) => {
-  const blackOccupiedBits = gameState.reduce((acc, curr, i) => {
+export const calculatePinned = (color: Color, state = gameState) => {
+  const blackOccupiedBits = state.reduce((acc, curr, i) => {
     if (i % 2 === 0) return acc;
     return acc.or(curr);
   }, Long.UZERO);
-  const occupiedBits = gameState.reduce(
-    (acc, curr) => acc.or(curr),
-    Long.UZERO
-  );
-  const whiteOccupiedBits = occupiedBits.xor(blackOccupiedBits);
-  const colorHelper = color === 'w' ? 0 : 1;
-  const array: Long[] = Array(64).fill(Long.UZERO);
-  for (let piece = colorHelper; piece <= 11; piece += 2) {
-    let pieces = gameState[piece];
-    while (!pieces.isZero()) {
-      const fromBitIndex = pieces.countTrailingZeros();
-      const legalMove = getMove({
-        fromBitIndex,
-        piece,
-        color,
-        blackOccupiedBits,
-        whiteOccupiedBits,
-        occupiedBits,
-      });
-
-      array[fromBitIndex] = legalMove;
-      pieces = pieces.and(Long.UONE.shl(fromBitIndex).not());
-    }
-  }
-  return array;
-};
-
-export const calculatePinned = (color: Color) => {
-  const blackOccupiedBits = gameState.reduce((acc, curr, i) => {
-    if (i % 2 === 0) return acc;
-    return acc.or(curr);
-  }, Long.UZERO);
-  const occupiedBits = gameState.reduce(
-    (acc, curr) => acc.or(curr),
-    Long.UZERO
-  );
+  const occupiedBits = state.reduce((acc, curr) => acc.or(curr), Long.UZERO);
   const teammateOccupiedBits =
     color === 'w' ? occupiedBits.xor(blackOccupiedBits) : blackOccupiedBits;
-  const initialPinned = pinnedPieces(color, teammateOccupiedBits, occupiedBits);
-  pinned = initialPinned;
+  const initialPinned = pinnedPieces(
+    color,
+    teammateOccupiedBits,
+    occupiedBits,
+    state
+  );
+  return { pinned: initialPinned };
 };
-calculatePinned('w');
+
 export function pinnedPieces(
   color: Color,
   teammateOccupiedBits: Long,
-  occupied: Long
+  occupied: Long,
+  state = gameState
 ) {
   const colorHelper = color === 'w' ? 1 : 0;
   const enemyColor = color === 'w' ? 0 : 1;
-  const kingPosition = gameState[11 - colorHelper] as Long;
+  const kingPosition = state[11 - colorHelper] as Long;
   const kingSquare = kingPosition.countTrailingZeros();
+
   if (kingSquare === 64) return Long.UZERO;
-  const eRook = gameState[3 - enemyColor] as Long;
-  const eBishop = gameState[5 - enemyColor] as Long;
-  const eQueen = gameState[9 - enemyColor] as Long;
+  const eRook = state[3 - enemyColor] as Long;
+  const eBishop = state[5 - enemyColor] as Long;
+  const eQueen = state[9 - enemyColor] as Long;
   let pinned = Long.UZERO;
 
-  let pinner = xrayRookAttacks(occupied, teammateOccupiedBits, kingSquare);
+  let pinner = xrayRookAttacks({
+    occupied,
+    blockers: teammateOccupiedBits,
+    fromBitIndex: kingSquare,
+  });
   while (!pinner.isZero()) {
     let pinnerSq = pinner.countTrailingZeros();
     let pinnerPosition = Long.UONE.shiftLeft(pinnerSq);
@@ -264,13 +316,17 @@ export function pinnedPieces(
       pinner = pinner.xor(Long.UONE.shiftLeft(pinnerSq));
       continue;
     }
-    const obstructedBB = getObstructed(kingSquare, pinnerSq, occupied);
+    const obstructedBB = moveMask.obstructed(kingSquare, pinnerSq, occupied);
     if (obstructedBB === null) break;
     const pieceBeingPinned = obstructedBB.and(teammateOccupiedBits);
     pinned = pinned.or(pieceBeingPinned);
     pinner = pinner.xor(Long.UONE.shiftLeft(pinnerSq));
   }
-  pinner = xrayBishopAttacks(occupied, teammateOccupiedBits, kingSquare);
+  pinner = xrayBishopAttacks({
+    occupied,
+    blockers: teammateOccupiedBits,
+    fromBitIndex: kingSquare,
+  });
   while (!pinner.isZero()) {
     let pinnerSq = pinner.countTrailingZeros();
     if (pinnerSq === 64) break;
@@ -281,7 +337,7 @@ export function pinnedPieces(
       continue;
     }
 
-    const obstructedBB = getObstructed(kingSquare, pinnerSq, occupied);
+    const obstructedBB = moveMask.obstructed(kingSquare, pinnerSq, occupied);
     if (obstructedBB === null) break;
     const pieceBeingPinned = obstructedBB.and(teammateOccupiedBits);
     //check if piece is bishop or queen its partiallyPinned
@@ -290,599 +346,142 @@ export function pinnedPieces(
   }
   return pinned;
 }
+/**
+ *  Should get next blocker behind current blocker in rook move mask
+ * @param occupied {Long} all occupied squares
+ * @param blockers {Long} current blockers witch is wanted to be xrayed for example teammateOccupied to check if piece is absolutely pinned
+ * @param square {number} index of square that is wanted to be examined
+ * @returns {Long} attackmask when current blocker is removed
+ */
+
+export function xrayRookAttacks({
+  occupied,
+  blockers,
+  fromBitIndex,
+}: {
+  occupied: Long;
+  blockers: Long;
+  fromBitIndex: number;
+}) {
+  const occupiedWOSelf = occupied.xor(Long.UONE.shiftLeft(fromBitIndex));
+  const attack = rookLegalAttacks({
+    fromBitIndex: fromBitIndex,
+    occupiedBits: occupied,
+  }).and(occupiedWOSelf);
+  const onlyBlockers = blockers.and(attack);
+  const attacksBehindBlockers = rookLegalAttacks({
+    fromBitIndex: fromBitIndex,
+    occupiedBits: occupied.xor(onlyBlockers),
+  }).and(occupiedWOSelf);
+  return attack.xor(attacksBehindBlockers);
+}
+/**
+ *  Should get next blocker behind current blocker in bishop move mask
+ * @param occupied {Long} all occupied squares
+ * @param blockers {Long} current blockers witch is wanted to be xrayed for example teammateOccupied to check if piece is absolutely pinned
+ * @param square {number} index of square that is wanted to be examined
+ * @returns {Long} attackmask when current blocker is removed
+ */
+
+export function xrayBishopAttacks({
+  occupied,
+  blockers,
+  fromBitIndex,
+}: {
+  occupied: Long;
+  blockers: Long;
+  fromBitIndex: number;
+}) {
+  const occupiedWOSelf = occupied.xor(Long.UONE.shiftLeft(fromBitIndex));
+  const attack = bishopAttacks({
+    fromBitIndex: fromBitIndex,
+    occupiedBits: occupied,
+  }).and(occupiedWOSelf);
+  const onlyBlockers = blockers.and(attack);
+  const attacksBehindBlockers = bishopAttacks({
+    fromBitIndex: fromBitIndex,
+    occupiedBits: occupied.xor(onlyBlockers),
+  }).and(occupiedWOSelf);
+  return attack.xor(attacksBehindBlockers);
+}
 export const setFEN = (
   state: Long[],
   elpassantP: SquareBit | null,
   castlingP: string,
   halfMoveP: number,
   fullMoveP: number,
-  color?: Color
+  color: Color
 ) => {
+  gameState = state;
   elPassant = elpassantP;
   castling = castlingP;
   halfMove = halfMoveP;
   fullMove = fullMoveP;
-  checked = false;
-  doubleChecked = false;
+  check = false;
+  doubleCheck = false;
   mate = false;
-  changeGameState(state, color);
-};
-export const changeGameState = (state: Long[], toColor?: Color) => {
-  //if color is given as parameter or get next players color
-  gameState = state;
-  const color = toColor ? toColor : turn === 'w' ? 'b' : 'w';
   turn = color;
-  calculatePinned(color);
-  isCheck();
+  changeGameState(getState(), color);
 };
-export const getMove = (p: Imove): Long => {
-  if (mate) return Long.UZERO;
-  switch (p.piece) {
-    case 0: {
-      return getPawn(p);
-    }
-    case 1: {
-      return getPawn(p);
-    }
-    case 2: {
-      return getRook(p);
-    }
-    case 3: {
-      return getRook(p);
-    }
-    case 4: {
-      return getBishop(p);
-    }
-    case 5: {
-      return getBishop(p);
-    }
-    case 6: {
-      return getKnight(p);
-    }
-    case 7: {
-      return getKnight(p);
-    }
-    case 8: {
-      if (doubleChecked) return Long.UZERO;
-      const diagonalLegalMoves = getBishop(p);
-      const RookLegalMoves = getRook(p);
+export const changeGameState = (state: state, color: Color) => {
+  //if color is given as parameter or get next players color
+  const initialPinned = calculatePinned(color, state.gameState);
+  const initialCheck = isCheck({ color, state: state.gameState });
 
-      return diagonalLegalMoves.or(RookLegalMoves);
-    }
-    case 9: {
-      if (doubleChecked) return Long.UZERO;
-      const diagonalLegalMoves = getBishop(p);
-      const RookLegalMoves = getRook(p);
-      return diagonalLegalMoves.or(RookLegalMoves);
-    }
-    case 10: {
-      return getKing(p);
-    }
-    case 11: {
-      return getKing(p);
-    }
-    default:
-      return Long.UZERO;
-  }
+  check = initialCheck.check;
+  checkingRays = initialCheck.checkingRays;
+  doubleCheck = initialCheck.doubleCheck;
+  pinned = initialPinned.pinned;
+  const initialMate = isMate({ color, state: getState() });
+  mate = initialMate;
 };
-export function isMate(color: Color) {
-  const allMoves = getMoves(color);
+
+export function isMate({ color, state }: { color: Color; state: state }) {
+  const allMoves = getMoves({ color, state });
   for (let asd of allMoves) {
     if (!asd.isZero()) {
-      return;
+      return false;
     }
   }
-  mate = true;
+  return true;
 }
-export function isCheck() {
-  const occupiedBits = gameState.reduce(
-    (acc, curr) => acc.or(curr),
-    Long.UZERO
-  );
+interface isCheckReturn {
+  check: boolean;
+  doubleCheck: boolean;
+  checkingRays: Long;
+}
+export function isCheck({
+  color,
+  state,
+}: {
+  color: Color;
+  state: Long[];
+}): isCheckReturn {
+  const occupiedBits = state.reduce((acc, curr) => acc.or(curr), Long.UZERO);
   const kingPosition =
-    turn === 'b' ? (gameState[11] as Long) : (gameState[10] as Long);
-
+    color === 'b' ? (state[11] as Long) : (state[10] as Long);
   const fromBitIndex = kingPosition.countTrailingZeros();
-  if (fromBitIndex === 64) return;
+  if (fromBitIndex === 64)
+    return {
+      check: false,
+      doubleCheck: false,
+      checkingRays: Long.UZERO,
+    };
 
   const { rays, check, doubleCheck } = kingIsAttackedFrom({
     occupiedBits,
     fromBitIndex,
-    gameState,
-    color: turn,
+    state: gameState,
+    color,
   });
-  doubleChecked = doubleCheck;
-  checkingRays = rays;
-  checked = check;
   //trigger mate checking function
-  if (check) isMate(turn);
-}
-export function getRook({
-  color,
-  fromBitIndex,
-  blackOccupiedBits,
-  whiteOccupiedBits,
-  occupiedBits,
-}: Omit<Imove, 'piece'>) {
-  if (doubleChecked) return Long.UZERO;
-  const piecePosition = Long.UONE.shiftLeft(fromBitIndex);
-  const kingPosition = color === 'w' ? gameState[10] : gameState[11];
-  const teammateOccupiedBits =
-    color === 'w' ? whiteOccupiedBits : blackOccupiedBits;
-  if (!piecePosition.and(pinned).isZero()) {
-    //determine if absolutely pinned
-    //check where king is and pinner is opposite
-    //check with rook mask,
-
-    const rookMask = moveMask.getBishopMoves(kingPosition.countTrailingZeros());
-    //if bishop is attacking, rook cannot move
-    if (!piecePosition.and(rookMask).isZero()) {
-      return Long.UZERO;
-    }
-    //check in what direction pinner is
-    return getRookPinnerDirection(
-      fromBitIndex,
-      kingPosition.countTrailingZeros(),
-      piecePosition,
-      occupiedBits
-    ).and(piecePosition.not());
-  }
-  const legalMoves = rookLegalMoves({
-    fromBitIndex,
-    occupiedBits,
-    teammateOccupiedBits,
-  });
-  return checked ? legalMoves.and(checkingRays) : legalMoves;
-}
-export function getBishop({
-  color,
-  fromBitIndex,
-  blackOccupiedBits,
-  whiteOccupiedBits,
-  occupiedBits,
-}: Omit<Imove, 'piece'>) {
-  if (doubleChecked) return Long.UZERO;
-  const friendlyKing = color === 'w' ? gameState[10] : gameState[11];
-  const teammateOccupiedBits =
-    color === 'w' ? whiteOccupiedBits : blackOccupiedBits;
-  const piecePosition = Long.UONE.shiftLeft(fromBitIndex);
-  if (!piecePosition.and(pinned).isZero()) {
-    //determine if absolutely pinned
-    //check where king is and pinner is opposite
-    //check with rook mask,
-
-    const rookMask = moveMask.getRookMoves(friendlyKing.countTrailingZeros());
-    //if rook is attacking, bishop cannot move
-    if (!piecePosition.and(rookMask).isZero()) {
-      return Long.UZERO;
-    }
-    //check in what direction pinner is
-    return getBishopPinnerDirection(
-      fromBitIndex,
-      friendlyKing.countTrailingZeros(),
-      piecePosition,
-      occupiedBits
-    );
-  }
-  const legalMoves = bishopLegalMoves({
-    occupiedBits,
-    fromBitIndex,
-    teammateOccupiedBits,
-  }).and(piecePosition.not());
-
-  return checked ? legalMoves.and(checkingRays) : legalMoves;
-}
-export function getPawn({
-  color,
-  fromBitIndex,
-  blackOccupiedBits,
-  whiteOccupiedBits,
-  occupiedBits,
-}: Omit<Imove, 'piece'>) {
-  const friendlyKing = color === 'w' ? gameState[10] : gameState[11];
-  const pawnPosition = Long.UONE.shl(fromBitIndex);
-  const enemyOccupied = color === 'b' ? whiteOccupiedBits : blackOccupiedBits;
-  if (doubleChecked) return Long.UZERO;
-  if (!pawnPosition.and(pinned).isZero()) {
-    return getPawnPinnerDirection(
-      fromBitIndex,
-      friendlyKing.countTrailingZeros(),
-      pawnPosition,
-      occupiedBits,
-      color,
-      enemyOccupied
-    );
-  }
-  const legalMoves = pawnLegalMoves({
-    fromBitIndex,
-    color,
-    enemyOccupied,
-    occupiedSquares: occupiedBits,
-    elPassant,
-  });
-  return checked ? legalMoves.and(checkingRays) : legalMoves;
-}
-export function getKnight({
-  color,
-  fromBitIndex,
-  blackOccupiedBits,
-  whiteOccupiedBits,
-}: Omit<Imove, 'piece'>) {
-  const teammateOccupied =
-    color === 'w' ? whiteOccupiedBits : blackOccupiedBits;
-  if (doubleChecked) return Long.UZERO;
-  if (!Long.UONE.shiftLeft(fromBitIndex).and(pinned).isZero()) {
-    return Long.UZERO;
-  }
-  const pseudoMoves = knightPseudoMoves({
-    fromBitIndex,
-  });
-  const legalMoves = pseudoMoves.and(teammateOccupied.not());
-  return checked ? legalMoves.and(checkingRays) : legalMoves;
-}
-export function getKing({
-  color,
-  fromBitIndex,
-  blackOccupiedBits,
-  whiteOccupiedBits,
-  occupiedBits,
-}: Omit<Imove, 'piece'>) {
-  const teammateOccupied =
-    color === 'w' ? whiteOccupiedBits : blackOccupiedBits;
-  const enemyOccupied = color === 'b' ? whiteOccupiedBits : blackOccupiedBits;
-  const legalMoves = kingLegalMoves({
-    fromBitIndex,
-    occupiedBits,
-    enemyOccupied,
-    teammateOccupied,
-    color,
-    gameState,
-  });
-  const notAttackedSquares = subsetOfMaskThatIsNotAttacked(
-    legalMoves,
-    occupiedBits.xor(Long.UONE.shl(fromBitIndex)),
-    color
-  );
-  return notAttackedSquares;
-}
-export function getPawnPinnerDirection(
-  square: number,
-  kingSq: number,
-  pawnPosition: Long,
-  occupied: Long,
-  color: Color,
-  enemyOccupied: Long
-) {
-  //N can move up if not blocked
-  if (
-    !moveMask.getN(kingSq).and(pawnPosition).isZero() ||
-    !moveMask.getS(kingSq).and(pawnPosition).isZero()
-  ) {
-    const mask = pawnPseudoMoves({ fromBitIndex: square, color });
-    if (color === 'w')
-      return removeBlockedMovesForward(square, mask, occupied, true);
-
-    return removeBlockedMovesBackwards(square, mask, occupied, true);
-  }
-  //NW
-  if (color === 'w' && !moveMask.getNW(kingSq).and(pawnPosition).isZero()) {
-    return pawnLegalAttacks({
-      fromBitIndex: square,
-      enemyOccupied,
-      color,
-      elPassant,
-    }).and(moveMask.getNW(kingSq));
-  }
-  //NE
-  if (color === 'w' && !moveMask.getNE(kingSq).and(pawnPosition).isZero()) {
-    return pawnLegalAttacks({
-      fromBitIndex: square,
-      enemyOccupied,
-      color,
-      elPassant,
-    }).and(moveMask.getNE(kingSq));
-  }
-  //SW
-  if (color === 'b' && !moveMask.getSW(kingSq).and(pawnPosition).isZero()) {
-    return pawnLegalAttacks({
-      fromBitIndex: square,
-      enemyOccupied,
-      color,
-      elPassant,
-    }).and(moveMask.getSW(kingSq));
-  }
-  //SE
-  if (color === 'b' && !moveMask.getSE(kingSq).and(pawnPosition).isZero()) {
-    return pawnLegalAttacks({
-      fromBitIndex: square,
-      enemyOccupied,
-      color,
-      elPassant,
-    }).and(moveMask.getSE(kingSq));
-  }
-  return Long.UZERO;
-}
-export function getBishopPinnerDirection(
-  square: number,
-  kingSq: number,
-  bishopPosition: Long,
-  occupied: Long
-) {
-  if (square > kingSq) {
-    //NW
-    if (!moveMask.getNW(kingSq).and(bishopPosition).isZero()) {
-      return removeBlockedMovesForward(
-        square,
-        moveMask.getNW(square),
-        occupied
-      ).and(bishopPosition.not());
-    }
-    //NE
-    if (!moveMask.getNE(kingSq).and(bishopPosition).isZero()) {
-      return removeBlockedMovesForward(
-        square,
-        moveMask.getNE(square),
-        occupied
-      ).and(bishopPosition.not());
-    }
-  }
-  //SW
-  if (!moveMask.getSW(kingSq).and(bishopPosition).isZero()) {
-    return removeBlockedMovesForward(
-      square,
-      moveMask.getSW(square),
-      occupied
-    ).and(bishopPosition.not());
-  }
-  //SE
-  if (!moveMask.getSE(kingSq).and(bishopPosition).isZero()) {
-    return removeBlockedMovesForward(
-      square,
-      moveMask.getSE(square),
-      occupied
-    ).and(bishopPosition.not());
-  }
-  return Long.UZERO;
-}
-export function getRookPinnerDirection(
-  square: number,
-  kingSq: number,
-  rookPosition: Long,
-  occupied: Long
-) {
-  if (square > kingSq) {
-    //N
-    if (!moveMask.getN(kingSq).and(rookPosition).isZero()) {
-      return removeBlockedMovesForward(square, moveMask.getN(square), occupied);
-    }
-    //W
-    if (!moveMask.getW(kingSq).and(rookPosition).isZero()) {
-      return removeBlockedMovesForward(square, moveMask.getW(square), occupied);
-    }
-  }
-  //E
-  if (!moveMask.getE(kingSq).and(rookPosition).isZero()) {
-    return removeBlockedMovesForward(square, moveMask.getE(square), occupied);
-  }
-  //S
-  if (!moveMask.getS(kingSq).and(rookPosition).isZero()) {
-    return removeBlockedMovesForward(square, moveMask.getS(square), occupied);
-  }
-  return Long.UZERO;
-}
-export const getCheckingPiecesRays = (checksBB: Long, kingSquare: number) => {
-  let rays = Long.UZERO;
-  let allCheckers = checksBB;
-  while (!allCheckers.isZero()) {
-    const attackerSq = allCheckers.countTrailingZeros();
-    if (attackerSq === 64) continue;
-    const ray = getinBetween(kingSquare, attackerSq) as Long;
-    //it might be knight
-    if (!ray) {
-      rays = rays.or(Long.UONE.shl(attackerSq));
-      allCheckers = allCheckers.xor(Long.UONE.shl(attackerSq));
-      continue;
-    }
-    rays = rays.or(ray);
-    allCheckers = allCheckers.xor(Long.UONE.shl(attackerSq));
-  }
-  return rays.and(Long.UONE.shl(kingSquare).not());
-};
-export const kingIsAttackedFrom = ({
-  occupiedBits,
-  fromBitIndex,
-  color,
-  gameState,
-}: {
-  occupiedBits: Long;
-  fromBitIndex: number;
-  color: Color;
-  gameState: Long[];
-}) => {
-  const colorHelper = color === 'w' ? 0 : 1;
-  const pawns = gameState[1 - colorHelper] as Long;
-  let checkRays = Long.UZERO;
-  let numOfChecks = 0;
-  const pawnAttack = pawnPseudoAttacks({ fromBitIndex, color }).and(pawns);
-  if (!pawnAttack.isZero()) {
-    checkRays = checkRays.or(pawnAttack);
-    numOfChecks = numOfChecks + 1;
-  }
-  const rooks = gameState[3 - colorHelper] as Long;
-  const queens = gameState[9 - colorHelper] as Long;
-  const bishops = gameState[5 - colorHelper] as Long;
-  const rookAttacks = rookLegalAttacks({
-    occupiedBits,
-    fromBitIndex,
-  });
-  const BAttacks = bishopAttacks({
-    fromBitIndex,
-    occupiedBits,
-  });
-  //rooks
-  if (!rookAttacks.and(rooks).isZero()) {
-    checkRays = checkRays.or(rookAttacks.and(rooks));
-    numOfChecks = numOfChecks + 1;
-  }
-
-  //bishop
-  if (!BAttacks.and(bishops).isZero()) {
-    checkRays = checkRays.or(BAttacks.and(bishops));
-    numOfChecks = numOfChecks + 1;
-  }
-  //queen
-  if (!rookAttacks.and(queens).isZero()) {
-    checkRays = checkRays.or(rookAttacks.and(queens));
-    numOfChecks = numOfChecks + 1;
-  }
-  //queen
-  if (!BAttacks.and(queens).isZero()) {
-    checkRays = checkRays.or(BAttacks.and(queens));
-    numOfChecks = numOfChecks + 1;
-  }
-
-  const knights = gameState[7 - colorHelper] as Long;
-  const knightAttacks = moveMask.getKnightMoves(fromBitIndex).and(knights);
-  if (!knightAttacks.isZero()) {
-    checkRays = checkRays.or(knightAttacks);
-    numOfChecks = numOfChecks + 1;
-  }
-  const rays = getCheckingPiecesRays(checkRays, fromBitIndex);
-  return { rays, check: numOfChecks !== 0, doubleCheck: numOfChecks >= 2 };
-};
-/**
- * can be checked if any square in movemask is being attacked, useful for castling and king moves
- * @param moveMask {Long} mask that is wanted to be checked in case of attacks
- * @param occupiedBits {Long} all occupied squares in board
- * @param color {Color} friendly color, opposite color can attack
- * @param gameState {Long[]}
- * @returns {Long} bitboard of all squares in mask that is safe to move
- */
-export function subsetOfMaskThatIsNotAttacked(
-  moveMask: Long,
-  occupiedBits: Long,
-  color: Color
-) {
-  //scan all bits
-  let allMoves = moveMask;
-  let squaresAttacked = Long.UZERO;
-  while (!allMoves.isZero()) {
-    const square = allMoves.countTrailingZeros();
-    if (square === 64) return moveMask.and(squaresAttacked.not());
-    const attacked = squareIsAttacked({
-      occupiedBits,
-      fromBitIndex: square,
-      friendlyColor: color,
-    });
-    if (attacked) squaresAttacked = squaresAttacked.or(Long.UONE.shl(square));
-    //remove checked square
-    const squarePosition = Long.UONE.shl(square).not();
-    allMoves = allMoves.and(squarePosition);
-  }
-  return moveMask.and(squaresAttacked.not());
+  return {
+    doubleCheck,
+    checkingRays: rays,
+    check,
+  };
 }
 
-/**
- *
- * @param occupiedBits {Long} BB of all pieces in board
- * @param fromBitIndex {number} index of square examined
- * @param friendlyColor {Color} color of examined piece
- * @returns true: enemy attacks square, false is safe to move
- */
-export const squareIsAttacked = ({
-  occupiedBits,
-  fromBitIndex,
-  friendlyColor,
-}: {
-  occupiedBits: Long;
-  fromBitIndex: number;
-  friendlyColor: Color;
-}) => {
-  const enemyColorHelper = friendlyColor === 'w' ? 0 : 1;
-  const ePawns = gameState[1 - enemyColorHelper] as Long;
-  //check if pawnAttack from examined square contains enemy pawn
-  if (
-    !pawnPseudoAttacks({ fromBitIndex, color: friendlyColor })
-      .and(ePawns)
-      .isZero()
-  ) {
-    return true;
-  }
-  const eRooks = gameState[3 - enemyColorHelper] as Long;
-  const eQueens = gameState[9 - enemyColorHelper] as Long;
-  const eRooksQueens = eQueens.or(eRooks);
-  //check if rookAttack from examined square contains enemy Rook/Queen
-  if (
-    !rookLegalAttacks({
-      occupiedBits,
-      fromBitIndex,
-    })
-      .and(eRooksQueens)
-      .isZero()
-  ) {
-    return true;
-  }
-  const eBishops = gameState[5 - enemyColorHelper] as Long;
-  const eBbishopsQueens = eQueens.or(eBishops);
-
-  //check if bishopAttack from examined square contains enemy Bishop/Queen
-  if (
-    !bishopAttacks({
-      fromBitIndex,
-      occupiedBits,
-    })
-      .and(eBbishopsQueens)
-      .isZero()
-  ) {
-    return true;
-  }
-  const eKnights = gameState[7 - enemyColorHelper] as Long;
-  //check if knightAttack from examined square contains enemy Knight
-  if (!moveMask.getKnightMoves(fromBitIndex).and(eKnights).isZero()) {
-    return true;
-  }
-  const eKings = gameState[11 - enemyColorHelper] as Long;
-  //check if kingAttack from examined square contains enemy King
-  if (!moveMask.getKingMoves(fromBitIndex).and(eKings).isZero()) {
-    return true;
-  }
-  //return false if square is not attacked by enemy pieces
-  return false;
-};
-export function xrayRookAttacks(
-  occupied: Long,
-  blockers: Long,
-  square: number
-) {
-  const occupiedWOSelf = occupied.xor(Long.UONE.shiftLeft(square));
-  const attack = rookLegalAttacks({
-    fromBitIndex: square,
-    occupiedBits: occupied,
-  }).and(occupiedWOSelf);
-  const onlyBlockers = blockers.and(attack);
-  const attacksBehindBlockers = rookLegalAttacks({
-    fromBitIndex: square,
-    occupiedBits: occupied.xor(onlyBlockers),
-  }).and(occupiedWOSelf);
-  return attack.xor(attacksBehindBlockers);
-}
-export function xrayBishopAttacks(
-  occupied: Long,
-  blockers: Long,
-  square: number
-) {
-  const occupiedWOSelf = occupied.xor(Long.UONE.shiftLeft(square));
-  const attack = bishopAttacks({
-    fromBitIndex: square,
-    occupiedBits: occupied,
-  }).and(occupiedWOSelf);
-  const onlyBlockers = blockers.and(attack);
-  const attacksBehindBlockers = bishopAttacks({
-    fromBitIndex: square,
-    occupiedBits: occupied.xor(onlyBlockers),
-  }).and(occupiedWOSelf);
-  return attack.xor(attacksBehindBlockers);
-}
 interface Imove extends IMoves {
   blackOccupiedBits: Long;
   whiteOccupiedBits: Long;

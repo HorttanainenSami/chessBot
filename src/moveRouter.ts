@@ -1,10 +1,11 @@
 const moveRouter = require('express').Router();
 import { Response, Request } from 'express';
 import { Color } from './Types';
-import { getState, makeMove, getMoves } from './GameLogic/gameStateChanger';
+import { getState, makeMove } from './GameLogic/gameStateChanger';
 import { getFEN, loadFEN } from './GameLogic/fen';
-import {} from './GameLogic/move';
+import {} from './GameLogic/moveMask';
 import Long from 'long';
+import { getMoves } from './GameLogic/move';
 
 moveRouter.get('/getState', (request: Request, response: Response) => {
   response.send(getState());
@@ -16,12 +17,15 @@ moveRouter.post('/makeMove', (request: Request, response: Response) => {
 
 moveRouter.get('/getMoves/w', (request: Request, response: Response) => {
   const color: Color = 'w';
-  const moves: Long[] = getMoves(color);
+  const state = getState();
+  const moves: Long[] = getMoves({ color, state });
   response.json(moves);
 });
 moveRouter.get('/getMoves/b', (request: Request, response: Response) => {
   const color: Color = 'b';
-  const moves: Long[] = getMoves(color);
+  const state = getState();
+
+  const moves: Long[] = getMoves({ color, state });
   response.json(moves);
 });
 
