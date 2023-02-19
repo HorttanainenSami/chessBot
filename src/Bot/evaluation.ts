@@ -105,7 +105,23 @@ export const evaluate = (state: state) => {
      along these lines.
   */
   const wK = state.gameState[10];
-  const bK = state.gameState[10];
+  const bK = state.gameState[11];
+  const wQ = state.gameState[8];
+  const bQ = state.gameState[9];
+  const wR = state.gameState[2];
+  const bR = state.gameState[3];
+  const wB = state.gameState[4];
+  const bB = state.gameState[5];
+  const wN = state.gameState[6];
+  const bN = state.gameState[7];
+  const wP = state.gameState[0];
+  const bP = state.gameState[1];
+  const kingEvaluation = 200 * (bitCount(wK) - bitCount(bK));
+  const QueenEvaluation = 9 * (bitCount(wQ) - bitCount(bQ));
+  const RookEvaluation = 5 * (bitCount(wR) - bitCount(bR));
+  const bishopAndKnightEvaluation =
+    3 * (bitCount(wB.or(wN)) - bitCount(bB.or(bN)));
+  const pawnEvaluation = bitCount(wP) - bitCount(bP);
   /*
 f(p) = 200(K-K')
        + 9(Q-Q')
@@ -119,8 +135,13 @@ KQRBNP = number of kings, queens, rooks, bishops, knights and pawns
 D,S,I = doubled, blocked and isolated pawns
 M = Mobility (the number of legal moves)
 */
-  var plusOrMinus = Math.random() < 0.5 ? -1 : 1;
-  return Math.floor(Math.random() * 3 * plusOrMinus);
+  return (
+    kingEvaluation +
+    QueenEvaluation +
+    RookEvaluation +
+    bishopAndKnightEvaluation +
+    pawnEvaluation
+  );
 };
 
 function bitCount(n: Long) {

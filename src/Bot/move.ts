@@ -46,6 +46,7 @@ const miniMax = (depth: number, color: Color): Promise<Move> => {
   return new Promise((resolve, reject) => {
     const initialState = getState();
     let nextMove: Move | null = null;
+
     mm(depth, initialState, color === 'w' ? true : false);
     function mm(depth: number, state: state, maximixingPlayer: boolean) {
       if (depth === 0 || state.mate) return evaluate(state);
