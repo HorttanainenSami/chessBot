@@ -252,7 +252,7 @@ interface getPieces extends Omit<Imove, 'piece'> {
   checkingRays: Long;
   pinned: Long;
 }
-interface getPawn extends getPieces {
+interface IgetPawn extends getPieces {
   elPassant: SquareBit | null;
 }
 export function getPawn({
@@ -267,7 +267,7 @@ export function getPawn({
   checkingRays,
   elPassant,
   pinned,
-}: getPawn) {
+}: IgetPawn) {
   const pawnPosition = Long.UONE.shl(fromBitIndex);
   const enemyOccupied = color === 'b' ? whiteOccupiedBits : blackOccupiedBits;
   if (doubleCheck) return Long.UZERO;
@@ -313,7 +313,7 @@ export function getKnight({
   const legalMoves = pseudoMoves.and(teammateOccupied.not());
   return check ? legalMoves.and(checkingRays) : legalMoves;
 }
-interface getKing extends Omit<Imove, 'piece'> {
+interface IgetKing extends Omit<Imove, 'piece'> {
   state: Long[];
   castling: string;
 }
@@ -325,7 +325,7 @@ export function getKing({
   occupiedBits,
   state,
   castling,
-}: getKing) {
+}: IgetKing) {
   const teammateOccupied =
     color === 'w' ? whiteOccupiedBits : blackOccupiedBits;
   const legalMoves = kingLegalMoves({
