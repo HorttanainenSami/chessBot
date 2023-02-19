@@ -12,4 +12,8 @@ Tässä projektissa rakennamme shakki tekoälyn. Projekti on tehty HY:n tira-lab
 
 [Viikkoraportti 4](https://github.com/HorttanainenSami/chessBot/blob/main/documents/Viikkoraportti4.md)
 
+[Viikkoraportti 5](https://github.com/HorttanainenSami/chessBot/blob/main/documents/Viikkoraportti5.md)
+
+[Toteutusdokumentti](https://github.com/HorttanainenSami/chessBot/blob/master/documents/Toteutusdokumentaatio.md)
+
 [Testausdokumentti](https://github.com/HorttanainenSami/chessBot/blob/main/documents/Testausdokumentti.md)
