@@ -13,11 +13,10 @@ import { evaluate } from './evaluation';
 export const move = async ({ color }: { color: Color }) => {
   //const nextMove = await mini(color);
   const start = Date.now();
-
-  const nextMiniMax = await miniMax(3, color);
+  console.log('start');
+  const nextMiniMax = await miniMax(4, color);
   const end = Date.now();
   console.log(`Execution time: ${end - start} ms`);
-  console.log(nextMiniMax);
   if (color === 'w') {
     console.log('called white piece');
   }
@@ -45,79 +44,75 @@ export const getBitIndexes = (bitString: Long) => {
 
 const miniMax = (depth: number, color: Color): Promise<Move> => {
   return new Promise((resolve, reject) => {
-    let score = 0;
-    let nextMove: Move | null = null;
-    //white is positive
-    //black is negative
     const initialState = getState();
-    if (color === 'w') {
-      maxi(depth, initialState);
-    } else {
-      mini(depth, initialState);
-    }
-    return nextMove ? resolve(nextMove) : reject(null);
-    function maxi(depth: number, state: state) {
-      if (depth === 0) return evaluate(state);
-      let max = -9999999;
+    let nextMove: Move | null = null;
+    mm(depth, initialState, color === 'w' ? true : false);
+    function mm(depth: number, state: state, maximixingPlayer: boolean) {
+      if (depth === 0 || state.mate) return evaluate(state);
 
-      for (let [fromBitIndex, pieceInfo] of getMoves({
-        color: state.turn,
-        state,
-      })) {
-        let possibleMoves = pieceInfo.moves;
-        while (!possibleMoves.isZero()) {
-          const toBitIndex = possibleMoves.countTrailingZeros();
-          const move = {
-            from: SquareBit[fromBitIndex] as Square,
-            to: SquareBit[toBitIndex] as Square,
-            promotion: 'q' as PieceSymbol,
-            color: pieceInfo.color,
-            piece: pieceInfo.piece,
-          };
-          const updatedState = getUpdatedState({ move, state });
+      if (maximixingPlayer) {
+        let maxEval = Number.NEGATIVE_INFINITY;
+        let funcMove: Move | null = null;
+        for (let [fromBitIndex, pieceInfo] of getMoves({
+          color: state.turn,
+          state,
+        })) {
+          let possibleMoves = pieceInfo.moves;
 
-          score = mini(depth - 1, updatedState);
-          //score = mini(depth - 1, state);
-          if (score > max) {
-            max = score;
-            nextMove = move;
+          while (!possibleMoves.isZero()) {
+            const toBitIndex = possibleMoves.countTrailingZeros();
+            const move = {
+              from: SquareBit[fromBitIndex] as Square,
+              to: SquareBit[toBitIndex] as Square,
+              promotion: 'q' as PieceSymbol,
+              color: pieceInfo.color,
+              piece: pieceInfo.piece,
+            };
+            const updatedState = getUpdatedState({ move, state });
+
+            const evaluate = mm(depth - 1, updatedState, false);
+            if (maxEval < evaluate) {
+              maxEval = evaluate;
+              funcMove = move;
+            }
+            possibleMoves = possibleMoves.and(Long.UONE.shl(toBitIndex).not());
           }
-          possibleMoves = possibleMoves.and(Long.UONE.shl(toBitIndex).not());
         }
-      }
-      return max;
-    }
-    function mini(depth: number, state: state) {
-      if (depth === 0) return -evaluate(state);
-      let min = 9999999;
-      for (let [fromBitIndex, pieceInfo] of getMoves({
-        color: state.turn,
-        state,
-      })) {
-        //depth-1 and state with moved piece
-        let possibleMoves = pieceInfo.moves;
+        nextMove = funcMove;
+        return maxEval;
+      } else {
+        let minEval = Number.POSITIVE_INFINITY;
+        let funcMove: Move | null = null;
+        for (let [fromBitIndex, pieceInfo] of getMoves({
+          color: state.turn,
+          state,
+        })) {
+          let possibleMoves = pieceInfo.moves;
 
-        while (!possibleMoves.isZero()) {
-          const toBitIndex = possibleMoves.countTrailingZeros();
-          const move = {
-            from: SquareBit[fromBitIndex] as Square,
-            to: SquareBit[toBitIndex] as Square,
-            promotion: 'q' as PieceSymbol,
-            color: pieceInfo.color,
-            piece: pieceInfo.piece,
-          };
-          const updatedState = getUpdatedState({ move, state });
+          while (!possibleMoves.isZero()) {
+            const toBitIndex = possibleMoves.countTrailingZeros();
+            const move = {
+              from: SquareBit[fromBitIndex] as Square,
+              to: SquareBit[toBitIndex] as Square,
+              promotion: 'q' as PieceSymbol,
+              color: pieceInfo.color,
+              piece: pieceInfo.piece,
+            };
+            const updatedState = getUpdatedState({ move, state });
 
-          score = maxi(depth - 1, updatedState);
-          //score = maxi(depth - 1, state);
-          if (score < min) {
-            min = score;
-            nextMove = move;
+            const evaluate = mm(depth - 1, updatedState, true);
+            if (minEval > evaluate) {
+              minEval = evaluate;
+              funcMove = move;
+            }
+            possibleMoves = possibleMoves.and(Long.UONE.shl(toBitIndex).not());
           }
-          possibleMoves = possibleMoves.and(Long.UONE.shl(toBitIndex).not());
         }
+        nextMove = funcMove;
+        return minEval;
       }
-      return min;
     }
+    if (nextMove) resolve(nextMove);
+    reject(null);
   });
 };

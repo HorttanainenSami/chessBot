@@ -212,6 +212,7 @@ export const getUpdatedState = ({
 
   const mate = isMate({ color: iState.turn, state: iState });
   iState.mate = mate;
+
   return iState;
 };
 /**
