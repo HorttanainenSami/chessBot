@@ -96,13 +96,7 @@ export const evaluate = (state: state) => {
   /*
   //king safety
   pawn shelter
-  king mobility, how many squares king can move to, and safety of these squares
-  Open files and diagonals: Open files and diagonals can provide avenues
-   of attack for the opponent's pieces to target the king. Chess engines 
-   typically evaluate the openness of files and diagonals around the king,
-    taking into account factors such as the presence of pawns, the mobility
-     of the opponent's pieces, and the potential for attacks to be launched 
-     along these lines.
+  king mobility
   */
   const wK = state.gameState[10];
   const bK = state.gameState[11];

@@ -35,6 +35,7 @@ export interface IAllMoves {
   piece: bitPieces;
   color: Color;
   moves: Long;
+  attacks: Long;
 }
 export const getMoves = ({
   color,
@@ -72,7 +73,11 @@ export const getMoves = ({
         state,
       });
       if (!legalMove.isZero()) {
-        array.set(fromBitIndex, { piece, color, moves: legalMove });
+        const attacks =
+          color === 'w'
+            ? blackOccupiedBits.and(legalMove)
+            : whiteOccupiedBits.and(legalMove);
+        array.set(fromBitIndex, { piece, color, moves: legalMove, attacks });
       }
 
       pieces = pieces.and(Long.UONE.shl(fromBitIndex).not());

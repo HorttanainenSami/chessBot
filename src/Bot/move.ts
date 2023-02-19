@@ -17,9 +17,7 @@ export const move = async ({ color }: { color: Color }) => {
   const nextMiniMax = await miniMax(4, color);
   const end = Date.now();
   console.log(`Execution time: ${end - start} ms`);
-  if (color === 'w') {
-    console.log('called white piece');
-  }
+
   return makeMove(nextMiniMax);
 };
 
@@ -47,18 +45,32 @@ const miniMax = (depth: number, color: Color): Promise<Move> => {
     const initialState = getState();
     let nextMove: Move | null = null;
 
-    mm(depth, initialState, color === 'w' ? true : false);
-    function mm(depth: number, state: state, maximixingPlayer: boolean) {
+    mm(
+      depth,
+      initialState,
+      color === 'w' ? true : false,
+      Number.NEGATIVE_INFINITY,
+      Number.POSITIVE_INFINITY
+    );
+    function mm(
+      depth: number,
+      state: state,
+      maximixingPlayer: boolean,
+      alpha: number,
+      beta: number
+    ) {
       if (depth === 0 || state.mate) return evaluate(state);
 
       if (maximixingPlayer) {
         let maxEval = Number.NEGATIVE_INFINITY;
         let funcMove: Move | null = null;
+
         for (let [fromBitIndex, pieceInfo] of getMoves({
           color: state.turn,
           state,
         })) {
           let possibleMoves = pieceInfo.moves;
+          let possibleAttacks = pieceInfo.attacks;
 
           while (!possibleMoves.isZero()) {
             const toBitIndex = possibleMoves.countTrailingZeros();
@@ -70,12 +82,13 @@ const miniMax = (depth: number, color: Color): Promise<Move> => {
               piece: pieceInfo.piece,
             };
             const updatedState = getUpdatedState({ move, state });
-
-            const evaluate = mm(depth - 1, updatedState, false);
+            const evaluate = mm(depth - 1, updatedState, false, alpha, beta);
             if (maxEval < evaluate) {
               maxEval = evaluate;
               funcMove = move;
             }
+            alpha = Math.max(alpha, maxEval);
+            if (beta <= alpha) break;
             possibleMoves = possibleMoves.and(Long.UONE.shl(toBitIndex).not());
           }
         }
@@ -84,12 +97,13 @@ const miniMax = (depth: number, color: Color): Promise<Move> => {
       } else {
         let minEval = Number.POSITIVE_INFINITY;
         let funcMove: Move | null = null;
+
         for (let [fromBitIndex, pieceInfo] of getMoves({
           color: state.turn,
           state,
         })) {
           let possibleMoves = pieceInfo.moves;
-
+          let possibleAttacks = pieceInfo.attacks;
           while (!possibleMoves.isZero()) {
             const toBitIndex = possibleMoves.countTrailingZeros();
             const move = {
@@ -101,14 +115,18 @@ const miniMax = (depth: number, color: Color): Promise<Move> => {
             };
             const updatedState = getUpdatedState({ move, state });
 
-            const evaluate = mm(depth - 1, updatedState, true);
+            const evaluate = mm(depth - 1, updatedState, true, alpha, beta);
             if (minEval > evaluate) {
               minEval = evaluate;
+              beta = Math.min(alpha, minEval);
               funcMove = move;
             }
+            beta = Math.min(alpha, minEval);
+            if (beta <= alpha) break;
             possibleMoves = possibleMoves.and(Long.UONE.shl(toBitIndex).not());
           }
         }
+
         nextMove = funcMove;
         return minEval;
       }
