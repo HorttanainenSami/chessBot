@@ -12,9 +12,7 @@ export type Piece =
   | 'bR'
   | 'bQ'
   | 'bK';
-
-export type Color = 'b' | 'w';
-
+export type Color = 'w' | 'b';
 export type PieceSymbol = 'p' | 'r' | 'b' | 'n' | 'q' | 'k';
 
 export type Square =

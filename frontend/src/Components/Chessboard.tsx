@@ -1,7 +1,12 @@
 import React, { useState } from 'react';
 import { Chessboard as Cb } from 'react-chessboard';
-import useChess, { IMoves } from '../GameLogic/useChess';
-import { logger, bitPieces, getBitPiece } from '../GameLogic/helpers';
+import useChess, { IMoves, getBitIndexes } from '../GameLogic/useChess';
+import {
+  logger,
+  bitPieces,
+  getBitPiece,
+  SquareBit,
+} from '../GameLogic/helpers';
 import Long from 'long';
 import { Square, Piece, Color } from '../Types';
 
@@ -33,7 +38,7 @@ const Chessboard = () => {
     clearBoard,
   } = useChess();
   const [optionSquares, setOptionSquares] = useState({});
-  //@ts-ignore: next-line
+  const [currentTimeout, setCurrentTimeout] = useState<NodeJS.Timeout>();
   function onDrop(
     sourceSquare: Square,
     targetSquare: Square,
@@ -48,7 +53,7 @@ const Chessboard = () => {
       promotion: 'q',
       color: piece.charAt(0) as Color,
     });
-    console.log('onDrop ', result);
+
     return result;
   }
   function getMoveOptions(move: IMoves) {
@@ -74,7 +79,6 @@ const Chessboard = () => {
   }
 
   const showMoves = (piece: Piece, sourceSquare: Square) => {
-    console.log('dragged', piece, sourceSquare);
     const bitPiece =
       bitPieces[
         (piece.charAt(0) === 'b'

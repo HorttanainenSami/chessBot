@@ -18,7 +18,7 @@ import {
   removeBlockedMovesForward,
   removeBlockedMovesBackwards,
 } from './bitManipulation';
-import { gameState, state } from './gameStateChanger';
+import { state } from './gameStateChanger';
 
 interface Imove extends IMoves {
   blackOccupiedBits: Long;
@@ -30,8 +30,19 @@ export interface IMoves {
   piece: bitPieces;
   color: Color;
 }
-
-export const getMoves = ({ color, state }: { color: Color; state: state }) => {
+export type getMovesReturn = Map<SquareBit, IAllMoves>;
+export interface IAllMoves {
+  piece: bitPieces;
+  color: Color;
+  moves: Long;
+}
+export const getMoves = ({
+  color,
+  state,
+}: {
+  color: Color;
+  state: state;
+}): getMovesReturn => {
   const { gameState } = state;
   const blackOccupiedBits = gameState.reduce((acc, curr, i) => {
     if (i % 2 === 0) return acc;
@@ -43,7 +54,7 @@ export const getMoves = ({ color, state }: { color: Color; state: state }) => {
   );
   const whiteOccupiedBits = occupiedBits.xor(blackOccupiedBits);
   const colorHelper = color === 'w' ? 0 : 1;
-  const array: Long[] = Array(64).fill(Long.UZERO);
+  const array: getMovesReturn = new Map();
   for (let piece = colorHelper; piece <= 11; piece += 2) {
     let pieces = gameState[piece];
     while (!pieces.isZero()) {
@@ -60,8 +71,10 @@ export const getMoves = ({ color, state }: { color: Color; state: state }) => {
         move,
         state,
       });
+      if (!legalMove.isZero()) {
+        array.set(fromBitIndex, { piece, color, moves: legalMove });
+      }
 
-      array[fromBitIndex] = legalMove;
       pieces = pieces.and(Long.UONE.shl(fromBitIndex).not());
     }
   }
@@ -226,7 +239,7 @@ export function getBishop({
 
   return check ? legalMoves.and(checkingRays) : legalMoves;
 }
-////////////////////////////////////set gameState to all getPieces
+
 interface getPieces extends Omit<Imove, 'piece'> {
   friendlyKing: Long;
   check: boolean;
@@ -350,8 +363,9 @@ const kingLegalCastlings = ({
   let castlingMask = Long.UZERO;
   function getCastlingMoveMask(to: number) {
     const kingMoveMask = moveMask.inBetween(fromBitIndex, to);
-    if (!kingMoveMask)
+    if (!kingMoveMask) {
       throw new Error('FEN notation is in conflict with gamestate! (castling)');
+    }
     const safeMoveMask = subsetOfMaskThatIsNotAttacked({
       moveMask: kingMoveMask,
       occupiedBits,

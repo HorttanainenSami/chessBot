@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import Long from 'long';
 import { bitPieces, SquareBit, logger, isNumeric, checkBitAt } from './helpers';
 import { Square, Move, Color } from '../Types';
-import useChessApi from './useChessApi';
+import useChessApi, { getMovesReturn } from './useChessApi';
 
 export interface IMoves {
   square: Square;
@@ -17,16 +17,24 @@ const useChess = () => {
   const [fen, setFen] = useState<string>(
     'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'
   );
+  const botSide = 'b';
 
-  const [nextBMoves, setBNextMoves] = useState<Long[]>(
-    Array(64).fill(Long.UZERO)
-  );
-  const [nextWMoves, setWNextMoves] = useState<Long[]>(
-    Array(64).fill(Long.UZERO)
-  );
-  const { getMovesW, getMovesB, getState, loadFEN, getFEN, makeMove } =
-    useChessApi();
-
+  const [nextBMoves, setBNextMoves] = useState<getMovesReturn>(new Map());
+  const [nextWMoves, setWNextMoves] = useState<getMovesReturn>(new Map());
+  const {
+    getMovesW,
+    getMovesB,
+    getState,
+    loadFEN,
+    getFEN,
+    makeMove,
+    getBotMove,
+  } = useChessApi();
+  useEffect(() => {
+    if (turn === botSide) {
+      getBotMoves();
+    }
+  }, [turn]);
   const loadFen = (fen: string) => {
     loadFEN(fen).then(() => updateState());
   };
@@ -41,16 +49,25 @@ const useChess = () => {
     if (p === null) {
       return;
     }
-
     const fromBitIndex: number = SquareBit[p.square];
+    console.log(nextWMoves.get(fromBitIndex), 'nextmoves');
+
     const legalMoves =
-      p.color === 'w' ? nextWMoves[fromBitIndex] : nextBMoves[fromBitIndex];
+      p.color === 'w'
+        ? nextWMoves.get(fromBitIndex)
+        : nextBMoves.get(fromBitIndex);
     //turn table for squareNotation array
     if (legalMoves) {
-      const algebricNotation = getBitIndexes(legalMoves);
+      const algebricNotation = getBitIndexes(legalMoves.moves);
       return algebricNotation;
     }
     return null;
+  };
+  const getBotMoves = async () => {
+    console.log('getBotMoves');
+    const result = await getBotMove();
+
+    await updateState();
   };
   async function updateState() {
     const p1 = await getState();
@@ -58,10 +75,10 @@ const useChess = () => {
     const p3 = await getMovesW();
     const p4 = await getFEN();
     const [s, b, w, fen] = await Promise.all([p1, p2, p3, p4]);
-    const { gameState, mate, checked, turn } = s;
+    const { gameState, mate, check, turn } = s;
     setBNextMoves(b);
     setWNextMoves(w);
-    setChecked(checked);
+    setChecked(check);
     setMate(mate);
     setTurn(turn);
     setFen(fen);
@@ -75,16 +92,16 @@ const useChess = () => {
     const toBitIndex = SquareBit[props.to];
     const color = props.color;
     if (color === 'w') {
-      const legalMoves = nextWMoves[fromBitIndex];
+      const legalMoves = nextWMoves.get(fromBitIndex);
       if (!legalMoves) return false;
-      if (!legalMoves.and(Long.UONE.shl(toBitIndex)).isZero()) {
+      if (!legalMoves.moves.and(Long.UONE.shl(toBitIndex)).isZero()) {
         saveMoveInServer(props);
         return true;
       }
     } else {
-      const legalMoves = nextBMoves[fromBitIndex];
+      const legalMoves = nextBMoves.get(fromBitIndex);
       if (!legalMoves) return false;
-      if (!legalMoves.and(Long.UONE.shl(toBitIndex)).isZero()) {
+      if (!legalMoves.moves.and(Long.UONE.shl(toBitIndex)).isZero()) {
         saveMoveInServer(props);
         return true;
       }
@@ -100,6 +117,7 @@ const useChess = () => {
   //returns FEN notation of gamestate. Useful for testing
 
   return {
+    getBotMoves,
     makeMove: MakeMove,
     loadFEN: loadFen,
     clearBoard,
@@ -110,7 +128,7 @@ const useChess = () => {
     turn,
   };
 };
-const getBitIndexes = (bitString: Long) => {
+export const getBitIndexes = (bitString: Long) => {
   let algebricNotation: string[] = [];
   const bit = bitString.toString(2);
   for (let i = bit.length - bitString.countTrailingZeros(); i >= 0; i--) {

@@ -1,20 +1,27 @@
 import axios from 'axios';
-import { bitPieces } from './helpers';
+import { SquareBit, bitPieces } from './helpers';
 import { Color, Square, Move } from '../Types';
 import Long from 'long';
 
 // Make a request for a user with a given ID
 const url = 'http://localhost:3001';
+
+export type getMovesReturn = Map<SquareBit, IAllMoves>;
+interface IAllMoves {
+  piece: bitPieces;
+  color: Color;
+  moves: Long;
+}
+interface IgetState {
+  gameState: Long[];
+  pinned: boolean;
+  check: boolean;
+  doubleCheck: boolean;
+  checkingRays: Long;
+  mate: boolean;
+  turn: Color;
+}
 const useChessApi = () => {
-  interface IgetState {
-    gameState: Long[];
-    pinned: boolean;
-    checked: boolean;
-    doubleChecked: boolean;
-    checkingRays: Long;
-    mate: boolean;
-    turn: Color;
-  }
   const getState = async (): Promise<IgetState> => {
     const response = await axios.get(url + '/getState');
     response.data.gameState = response.data.gameState.map((r: Long) =>
@@ -33,16 +40,31 @@ const useChessApi = () => {
     const r = await axios.get<string>(url + '/getFEN');
     return r.data;
   };
-  const getMovesW = async (): Promise<Long[]> => {
-    const r = await axios.get<Long[]>(url + '/getMoves/w');
+  const getMovesW = async (): Promise<getMovesReturn> => {
+    const r = await axios.get<[number, IAllMoves][]>(url + '/getMoves/w');
     //somehow long is needed to cast again in Long object
-    const result: Long[] = r.data.map((r) => Long.fromValue(r));
-    return result;
+    const typedObject = r.data.map((r) => {
+      r[1].moves = Long.fromValue(r[1].moves);
+      return r;
+    });
+    const map: getMovesReturn = new Map(typedObject);
+
+    return map;
   };
-  const getMovesB = async (): Promise<Long[]> => {
-    const r = await axios.get<Long[]>(url + '/getMoves/b');
-    const result: Long[] = r.data.map((r) => Long.fromValue(r));
-    return result;
+  const getMovesB = async (): Promise<getMovesReturn> => {
+    const r = await axios.get<[number, IAllMoves][]>(url + '/getMoves/b');
+    const typedObject = r.data.map((r) => {
+      r[1].moves = Long.fromValue(r[1].moves);
+      return r;
+    });
+    const map: getMovesReturn = new Map(typedObject);
+
+    return map;
+  };
+  const getBotMove = async (): Promise<IgetState> => {
+    const response = await axios.get<IgetState>(url + '/getMoves/bot');
+    console.log(response.data);
+    return response.data;
   };
   const makeMove = async (move: Move) => {
     const result = await axios.post(url + '/makeMove', move);
@@ -55,6 +77,7 @@ const useChessApi = () => {
     makeMove,
     getMovesW,
     getMovesB,
+    getBotMove,
   };
 };
 

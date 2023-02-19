@@ -1,11 +1,10 @@
 const moveRouter = require('express').Router();
 import { Response, Request } from 'express';
 import { Color } from './Types';
-import { getState, makeMove } from './GameLogic/gameStateChanger';
+import { botSide, getState, makeMove } from './GameLogic/gameStateChanger';
 import { getFEN, loadFEN } from './GameLogic/fen';
-import {} from './GameLogic/moveMask';
-import Long from 'long';
-import { getMoves } from './GameLogic/move';
+import { move as botMove } from './Bot/move';
+import { getMoves, getMovesReturn } from './GameLogic/move';
 
 moveRouter.get('/getState', (request: Request, response: Response) => {
   response.send(getState());
@@ -18,15 +17,15 @@ moveRouter.post('/makeMove', (request: Request, response: Response) => {
 moveRouter.get('/getMoves/w', (request: Request, response: Response) => {
   const color: Color = 'w';
   const state = getState();
-  const moves: Long[] = getMoves({ color, state });
-  response.json(moves);
+  const moves: getMovesReturn = getMoves({ color, state });
+  response.send([...moves]);
 });
 moveRouter.get('/getMoves/b', (request: Request, response: Response) => {
   const color: Color = 'b';
   const state = getState();
 
-  const moves: Long[] = getMoves({ color, state });
-  response.json(moves);
+  const moves: getMovesReturn = getMoves({ color, state });
+  response.send([...moves]);
 });
 
 moveRouter.post('/loadFEN', (request: Request, response: Response) => {
@@ -38,5 +37,11 @@ moveRouter.get('/getFEN', (request: Request, response: Response) => {
   const fen = getFEN();
   response.send(fen);
 });
-
+moveRouter.get('/getMoves/bot', (request: Request, response: Response) => {
+  if (botSide) {
+    botMove({ color: botSide })
+      .then(() => response.json(getFEN()))
+      .catch(() => response.json({ error: 'No bot in this game' }));
+  }
+});
 module.exports = moveRouter;

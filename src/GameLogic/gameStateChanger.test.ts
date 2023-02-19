@@ -8,10 +8,12 @@ import {
   xrayRookAttacks,
   getState,
   makeMove,
+  getUpdatedState,
 } from './gameStateChanger';
-import { Color } from '../Types';
-import { logger } from './helpers';
+import { Color, Move, PieceSymbol, Square } from '../Types';
+import { SquareBit, logger } from './helpers';
 import { loadFEN } from './fen';
+import { getMove } from './move';
 const emptyBoardState: Long[] = Array(12).fill(Long.UZERO);
 beforeEach(() => reset());
 
@@ -199,5 +201,29 @@ describe('updateGameState', () => {
     const { gameState: state } = getState();
 
     const asd = state[0];
+  });
+});
+describe('getUpdatedState', () => {
+  it('getUpdatedState should not update real state', () => {
+    const color: Color = 'w';
+    const state = getState();
+    console.log(state.gameState[0].toString(16));
+    const fromBitIndex = state.gameState[0].countTrailingZeros();
+    const toBitIndex = Long.UONE.shl(fromBitIndex + 8).countTrailingZeros();
+    const move: Move = {
+      from: SquareBit[fromBitIndex] as Square,
+      to: SquareBit[toBitIndex] as Square,
+      promotion: 'q' as PieceSymbol,
+      color,
+      piece: 0,
+    };
+
+    const updated = getUpdatedState({ move, state });
+
+    const { gameState } = getState();
+    console.log(state.gameState[0].toString(16));
+
+    expect(state.gameState[0]).toEqual(gameState[0]);
+    expect(updated.gameState[0]).not.toEqual(gameState[0]);
   });
 });

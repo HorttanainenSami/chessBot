@@ -1,9 +1,11 @@
 import Long from 'long';
+import _ from 'lodash';
 import { Color, Move } from '../Types';
 import { bishopAttacks, moveMask, rookLegalAttacks } from './moveMask';
-
+import { move as botMove } from '../Bot/move';
 import { SquareBit, bitPieces, logger } from './helpers';
 import { getMoves, kingIsAttackedFrom } from './move';
+import { is } from '@babel/types';
 export let gameState: Long[] = [
   //pawns
   Long.fromString('0xff00', true, 16), //w
@@ -35,6 +37,7 @@ export let castling = 'KQkq';
 // can be used to set tie if reaches to 50
 export let halfMove = 0;
 export let fullMove = 1;
+export let botSide: null | Color = 'b';
 export const setElPassant = (s: SquareBit | null) => (elPassant = s);
 export const setHalfMove = (s: number) => (halfMove = s);
 export const setFullMove = (s: number) => (fullMove = s);
@@ -93,7 +96,7 @@ export const getState = (): state => ({
   elPassant,
   halfMove,
   fullMove,
-  castling: castling,
+  castling,
 });
 export const getUpdatedState = ({
   move,
@@ -102,17 +105,8 @@ export const getUpdatedState = ({
   move: Move;
   state: state;
 }): state => {
-  let initialGameState = state.gameState;
-  let initialPinned = state.pinned;
-  let initialCheck = state.check;
-  let initialDoubleCheck = state.doubleCheck;
-  let initialCheckingRays = state.checkingRays;
-  let initialMate = state.mate;
-  let initialTurn = state.turn;
-  let initialElPassant = state.elPassant;
-  let initialHalfMove = state.halfMove;
-  let initialFullMove = state.fullMove;
-  let initialCastling = state.castling;
+  //const iState = structuredClone(state);
+  const iState = _.cloneDeep<state>(state);
 
   const { piece, to, from, color } = move;
   const toBitIndex = SquareBit[to];
@@ -123,114 +117,102 @@ export const getUpdatedState = ({
   //if piece moved is king or rook remove castling
   if (piece === 10) {
     if (fromBitIndex === 3 && toBitIndex === 1) {
-      if (!initialGameState[2].and(Long.UONE).isZero()) {
-        initialGameState[2] = initialGameState[2].and(Long.UONE.not());
-        initialGameState[2] = initialGameState[2].or(Long.UONE.shl(2));
+      if (!iState.gameState[2].and(Long.UONE).isZero()) {
+        iState.gameState[2] = iState.gameState[2].and(Long.UONE.not());
+        iState.gameState[2] = iState.gameState[2].or(Long.UONE.shl(2));
       }
     }
     if (fromBitIndex === 3 && toBitIndex === 5) {
-      if (!initialGameState[2].and(Long.UONE.shl(7)).isZero()) {
-        initialGameState[2] = initialGameState[2].and(Long.UONE.shl(7).not());
-        initialGameState[2] = initialGameState[2].or(Long.UONE.shl(4));
+      if (!iState.gameState[2].and(Long.UONE.shl(7)).isZero()) {
+        iState.gameState[2] = iState.gameState[2].and(Long.UONE.shl(7).not());
+        iState.gameState[2] = iState.gameState[2].or(Long.UONE.shl(4));
       }
     }
-    initialCastling = initialCastling.replace('KQ', '');
+    iState.castling = iState.castling.replace('Q', '');
+    iState.castling = iState.castling.replace('K', '');
   }
   if (piece === 11) {
     if (fromBitIndex === 59 && toBitIndex === 57) {
-      if (!initialGameState[3].and(Long.UONE.shl(56)).isZero()) {
-        initialGameState[3] = initialGameState[3].and(Long.UONE.shl(56).not());
-        initialGameState[3] = initialGameState[3].or(Long.UONE.shl(58));
+      if (!iState.gameState[3].and(Long.UONE.shl(56)).isZero()) {
+        iState.gameState[3] = iState.gameState[3].and(Long.UONE.shl(56).not());
+        iState.gameState[3] = iState.gameState[3].or(Long.UONE.shl(58));
       }
     }
     if (fromBitIndex === 59 && toBitIndex === 61) {
-      if (!initialGameState[3].and(Long.UONE.shl(63)).isZero()) {
-        initialGameState[3] = initialGameState[3].and(Long.UONE.shl(63).not());
-        initialGameState[3] = initialGameState[3].or(Long.UONE.shl(60));
+      if (!iState.gameState[3].and(Long.UONE.shl(63)).isZero()) {
+        iState.gameState[3] = iState.gameState[3].and(Long.UONE.shl(63).not());
+        iState.gameState[3] = iState.gameState[3].or(Long.UONE.shl(60));
       }
     }
-    initialCastling = initialCastling.replace('kq', '');
+    iState.castling = iState.castling.replace('k', '');
+    iState.castling = iState.castling.replace('q', '');
   }
   if (piece === 2) {
-    if (fromBitIndex === 0) initialCastling = initialCastling.replace('K', '');
-    if (fromBitIndex === 7) initialCastling = initialCastling.replace('Q', '');
+    if (fromBitIndex === 0) iState.castling = iState.castling.replace('K', '');
+    if (fromBitIndex === 7) iState.castling = iState.castling.replace('Q', '');
   }
   if (piece === 3) {
-    if (fromBitIndex === 56) initialCastling = initialCastling.replace('k', '');
-    if (fromBitIndex === 63) initialCastling = initialCastling.replace('q', '');
+    if (fromBitIndex === 56) iState.castling = iState.castling.replace('k', '');
+    if (fromBitIndex === 63) iState.castling = iState.castling.replace('q', '');
   }
   //TODO if move is rook remove castling rights of that side rook
 
   //make move
-  initialGameState[piece] = initialGameState[piece].and(fromMask.not());
-  initialGameState[piece] = initialGameState[piece].or(toMask);
+  iState.gameState[piece] = iState.gameState[piece].and(fromMask.not());
+  iState.gameState[piece] = iState.gameState[piece].or(toMask);
   //remove captured pieces
   const elPassantCapture = checkIfElpassant(toBitIndex, piece);
   const deletedPieces = elPassantCapture
-    ? removeCapturedPiece(elPassantCapture.square, color, initialGameState)
-    : removeCapturedPiece(toBitIndex, color, initialGameState);
+    ? removeCapturedPiece(elPassantCapture.square, color, iState.gameState)
+    : removeCapturedPiece(toBitIndex, color, iState.gameState);
   //if pawn moves to last rank it will be promoted to Queen
   if (piece === 1 && ~~(toBitIndex / 8) === 0) {
-    initialGameState[9] = initialGameState[9].or(toMask);
-    initialGameState[piece] = initialGameState[piece].and(toMask.not());
+    iState.gameState[9] = iState.gameState[9].or(toMask);
+    iState.gameState[piece] = iState.gameState[piece].and(toMask.not());
   }
   if (piece === 0 && ~~(toBitIndex / 8) === 7) {
-    initialGameState[8] = initialGameState[8].or(toMask);
-    initialGameState[piece] = initialGameState[piece].and(toMask.not());
+    iState.gameState[8] = iState.gameState[8].or(toMask);
+    iState.gameState[piece] = iState.gameState[piece].and(toMask.not());
   }
 
   //set/remove elpassant
   if ((piece === 1 || piece === 0) && (fromBitIndex - toBitIndex) % 16 === 0) {
     const elPassantSquare = color === 'w' ? fromBitIndex + 8 : fromBitIndex - 8;
-    initialElPassant = elPassantSquare;
+    iState.elPassant = elPassantSquare;
   } else {
-    initialElPassant = null;
+    iState.elPassant = null;
   }
 
   //final state changes
 
   if (deletedPieces) {
-    initialGameState[deletedPieces.i] = deletedPieces.pieces;
+    iState.gameState[deletedPieces.i] = deletedPieces.pieces;
   }
   // changeGameState(modifiedGameState, newTurn);
   //set if pawn moved or piece captured to 0 otherwise increment
   if (piece === 1 || piece === 0 || deletedPieces) {
-    initialHalfMove = 0;
+    iState.halfMove = 0;
   } else {
-    initialHalfMove += 1;
+    iState.halfMove += 1;
   }
 
-  if (initialTurn === 'b') {
-    initialFullMove += 1;
+  if (iState.turn === 'b') {
+    iState.fullMove += 1;
   }
-  initialTurn = initialTurn === 'b' ? 'w' : 'b';
+  iState.turn = iState.turn === 'b' ? 'w' : 'b';
   const { check, doubleCheck, checkingRays } = isCheck({
-    color: initialTurn,
-    state: initialGameState,
+    color: iState.turn,
+    state: iState.gameState,
   });
-  const { pinned } = calculatePinned(initialTurn);
-  initialCheck = check;
-  initialDoubleCheck = doubleCheck;
-  initialPinned = pinned;
-  initialCheckingRays = checkingRays;
-  const object = {
-    gameState: initialGameState,
-    pinned: initialPinned,
-    check: initialCheck,
-    doubleCheck: initialDoubleCheck,
-    checkingRays: initialCheckingRays,
-    mate: initialMate,
-    turn: initialTurn,
-    elPassant: initialElPassant,
-    halfMove: initialHalfMove,
-    fullMove: initialFullMove,
-    castling: initialCastling,
-  };
+  const { pinned } = calculatePinned(iState.turn, iState.gameState);
+  iState.check = check;
+  iState.doubleCheck = doubleCheck;
+  iState.pinned = pinned;
+  iState.checkingRays = checkingRays;
 
-  const mate = isMate({ color, state: object });
-  object.mate = mate;
-  console.log(mate, object.mate);
-  return object;
+  const mate = isMate({ color: iState.turn, state: iState });
+  iState.mate = mate;
+  return iState;
 };
 /**
  * should be used to update gamestate, when making move
@@ -249,6 +231,8 @@ export const updateGameState = (move: Move) => {
   halfMove = s.halfMove;
   fullMove = s.fullMove;
   castling = s.castling;
+  return true;
+  //if (turn === botSide) botMove({ color: botSide });
 };
 
 export const checkIfElpassant = (toBitIndex: number, piece: bitPieces) => {
@@ -270,7 +254,7 @@ export const checkIfElpassant = (toBitIndex: number, piece: bitPieces) => {
 export const removeCapturedPiece = (
   fromBitIndex: number,
   color: Color,
-  state = gameState
+  state: Long[]
 ) => {
   // white pieces is even and black odd in gamestate Array so we need to set this even for black odd
   const forHelper = color === 'w' ? 1 : 0;
@@ -287,11 +271,10 @@ export const removeCapturedPiece = (
 // Move object or Algerbaic notation ie. Ng3 means knigth moves for g3 coortidane
 export const makeMove = (props: Move) => {
   if (props.color !== turn) return false;
-
   return updateGameState(props);
 };
 
-export const calculatePinned = (color: Color, state = gameState) => {
+export const calculatePinned = (color: Color, state: Long[]) => {
   const blackOccupiedBits = state.reduce((acc, curr, i) => {
     if (i % 2 === 0) return acc;
     return acc.or(curr);
@@ -312,7 +295,7 @@ export function pinnedPieces(
   color: Color,
   teammateOccupiedBits: Long,
   occupied: Long,
-  state = gameState
+  state: Long[]
 ) {
   const colorHelper = color === 'w' ? 1 : 0;
   const enemyColor = color === 'w' ? 0 : 1;
@@ -462,10 +445,11 @@ export const changeGameState = (state: state, color: Color) => {
 export function isMate({ color, state }: { color: Color; state: state }) {
   const allMoves = getMoves({ color, state });
   for (let asd of allMoves) {
-    if (!asd.isZero()) {
+    if (!asd[1].moves.isZero()) {
       return false;
     }
   }
+
   return true;
 }
 interface isCheckReturn {
@@ -494,7 +478,7 @@ export function isCheck({
   const { rays, check, doubleCheck } = kingIsAttackedFrom({
     occupiedBits,
     fromBitIndex,
-    state: gameState,
+    state,
     color,
   });
   //trigger mate checking function
