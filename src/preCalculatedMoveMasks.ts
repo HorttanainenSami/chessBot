@@ -1,5 +1,5 @@
 import Long from 'long';
-import { logger } from './helpers';
+import { logger } from './GameLogic/helpers';
 
 export function initializePreCalculatedMoves() {
   declareBisopMoves();
@@ -145,14 +145,14 @@ interface IinBetween {
   from: number;
   to: number;
 }
-export function inBetween(from: number, to: number ) {
+export function inBetween(from: number, to: number) {
   const fromArr = arrRectangular[from] as Array<Long | null>;
   return fromArr[to] as Long | null;
 }
 export interface ImayMove extends IinBetween {
   occupied: Long;
 }
-export function obstructed(from:number, to: number, occupied: Long) {
+export function obstructed(from: number, to: number, occupied: Long) {
   const between = inBetween(from, to);
   if (between === null) return Long.UZERO;
   return between.xor(Long.UONE.shiftLeft(from)).and(occupied);
@@ -160,7 +160,7 @@ export function obstructed(from:number, to: number, occupied: Long) {
 export function mayMove({ from, to, occupied }: ImayMove) {
   const between = inBetween(from, to);
   if (between === null) return false;
-  return between.and(occupied).isZero();
+  return between.and(occupied).and(Long.UONE.shl(from).not()).isZero();
 }
 
 /////////////////////////////////////////////////BISHOP///////////////////////////////////////
@@ -332,8 +332,7 @@ export const knightPseudoMoves = ({ knightPosition }: IknightPseudoMoves) => {
   const soSouthEast = knightPosition.shiftRightUnsigned(15);
   const soWestWest = knightPosition.shiftRightUnsigned(10);
   const soEastEast = knightPosition.shiftRightUnsigned(6);
-  const PseudoMask = knightPosition
-    .or(noNorthWest)
+  const PseudoMask = Long.UZERO.or(noNorthWest)
     .or(noNorthEast)
     .or(soSouthWest)
     .or(soSouthEast)
@@ -417,4 +416,7 @@ export default {
   getRookMoves,
   getKnightMoves,
   getKingMoves,
+  inBetween,
+  mayMove,
+  obstructed,
 };

@@ -1,3 +1,6 @@
+/**
+ * @jest-environment jsdom
+ */
 import {
   isNumeric,
   checkBitAt,
@@ -6,9 +9,8 @@ import {
   bitPieces,
   getBitPiece,
   logger,
-} from './helpers';
+} from '../../frontend/src/GameLogic/helpers';
 import Long from 'long';
-import { Piece } from '../Types';
 
 describe('isNumeric', () => {
   it('returns true for a string that can be converted to a number', () => {
@@ -44,6 +46,11 @@ describe('checkBitAt', () => {
     const index = 17;
     expect(checkBitAt(long, index)).toBe(true);
   });
+  it('should return false if bit null', () => {
+    const long = Long.fromString('0', true, 2);
+    const index = 17;
+    expect(checkBitAt(long, index)).toBe(false);
+  });
 });
 
 describe('blockingPiece', () => {
@@ -59,6 +66,14 @@ describe('blockingPiece', () => {
     const attacks = Long.fromString('0x6', true, 16);
     const mask = Long.fromString('0xff', true, 16);
     const expected = Long.fromString('0xfc', true, 16);
+
+    const result = removeBlockedMoves(attacks, mask, true);
+    expect(result).toEqual(expected);
+  });
+  it('returns a mask when attacks is not subset of mask', () => {
+    const attacks = Long.fromString('0x6', true, 16);
+    const mask = Long.fromString('ff00', true, 16);
+    const expected = Long.fromString('ff00', true, 16);
 
     const result = removeBlockedMoves(attacks, mask, true);
     expect(result).toEqual(expected);
@@ -83,13 +98,13 @@ describe('SquareBit', () => {
 
 describe('getBitPiece', () => {
   it('should return the correct bit representation of the given piece', () => {
-    const piece: Piece = 'bP';
+    const piece = 'bP';
     const result = getBitPiece(piece);
     expect(result).toEqual(bitPieces.p);
   });
 
   it('should return the correct bit representation of the given piece', () => {
-    const piece: Piece = 'bN';
+    const piece = 'bN';
     const result = getBitPiece(piece);
     expect(result).toEqual(bitPieces.n);
   });
