@@ -124,7 +124,9 @@ const Chessboard = () => {
         </button>
         <button
           style={buttonStyle}
-          onClick={() => loadFEN('8/8/8/pppppppp/PPPPPPPP/8/8/8 w - - 0 4')}
+          onClick={() =>
+            loadFEN('6k1/pp4p1/2p5/2bp4/8/P5Pb/1P3rrP/2BRRN1K b - - 0 1')
+          }
         >
           loadpawnEat
         </button>

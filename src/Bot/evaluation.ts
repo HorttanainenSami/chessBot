@@ -6,9 +6,8 @@ const B = 330;
 const R = 500;
 const Q = 900;
 const K = 20000;
-
 //prettier-ignore
-const pawn=[
+const pawnSG=[
   0,  0,  0,  0,  0,  0,  0,  0,
   50, 50, 50, 50, 50, 50, 50, 50,
   10, 10, 20, 30, 30, 20, 10, 10,
@@ -18,6 +17,19 @@ const pawn=[
   5, 10, 10,-20,-20, 10, 10,  5,
   0,  0,  0,  0,  0,  0,  0,  0
 ];
+//prettier-ignore
+const pawnMG=[
+  0,  0,  0,  0,  0,  0,  0,  0,
+  50, 50, 50, 50, 50, 50, 50, 50,
+  10, 10, 20, 30, 30, 20, 10, 10,
+  5,  5, 10, 25, 25, 10,  5,  5,
+  0,  0,  0, 20, 20,  0,  0,  0,
+  5, -5,-10,  0,  0,-10, -5,  5,
+  5, 10, 10,-20,-20, 10, 10,  5,
+  0,  0,  0,  0,  0,  0,  0,  0
+];
+const wPawn = pawnMG.reverse();
+
 //prettier-ignore
 const knight = [
   -50,-40,-30,-30,-30,-30,-40,-50,
@@ -29,6 +41,7 @@ const knight = [
   -40,-20,  0,  5,  5,  0,-20,-40,
   -50,-40,-30,-30,-30,-30,-40,-50,
 ];
+const wknight = knight.reverse();
 
 // prettier-ignore
 const bishop=[
@@ -41,6 +54,7 @@ const bishop=[
   -10,  5,  0,  0,  0,  0,  5,-10,
   -20,-10,-10,-10,-10,-10,-10,-20,
 ];
+const wBishop = bishop.reverse();
 
 // prettier-ignore
 const rooks = [
@@ -53,6 +67,7 @@ const rooks = [
   -5,  0,  0,  0,  0,  0,  0, -5,
   0,  0,  0,  5,  5,  0,  0,  0
 ];
+const wRooks = rooks.reverse();
 
 //prettier-ignore
 const queen = [
@@ -65,6 +80,7 @@ const queen = [
   -10,  0,  5,  0,  0,  0,  0,-10,
   -20,-10,-10, -5, -5,-10,-10,-20
 ];
+const wQueen = queen.reverse();
 
 //prettier-ignore
 const kingMG=[
@@ -77,6 +93,8 @@ const kingMG=[
   20, 20,  0,  0,  0,  0, 20, 20,
   20, 30, 10,  0,  0, 10, 30, 20
 ];
+const wKingMG = kingMG.reverse();
+
 //prettier-ignore
 
 const kingEG =[
@@ -89,15 +107,23 @@ const kingEG =[
   -30,-30,  0,  0,  0,  0,-30,-30,
   -50,-30,-30,-30,-30,-30,-30,-50
 ];
+const wKingEG = kingEG.reverse();
+
 export const evaluate = (state: state) => {
   //pieces in board
   //mobility
   //pawn structure
+  //piece position
   /*
   //king safety
   pawn shelter
   king mobility
   */
+  if (state.mate) {
+    return state.turn === 'w'
+      ? Number.NEGATIVE_INFINITY
+      : Number.POSITIVE_INFINITY;
+  }
   const wK = state.gameState[10];
   const bK = state.gameState[11];
   const wQ = state.gameState[8];
@@ -110,12 +136,38 @@ export const evaluate = (state: state) => {
   const bN = state.gameState[7];
   const wP = state.gameState[0];
   const bP = state.gameState[1];
-  const kingEvaluation = 200 * (bitCount(wK) - bitCount(bK));
-  const QueenEvaluation = 9 * (bitCount(wQ) - bitCount(bQ));
-  const RookEvaluation = 5 * (bitCount(wR) - bitCount(bR));
+  const kingEvaluation = K * (bitCount(wK) - bitCount(bK));
+  const QueenEvaluation = Q * (bitCount(wQ) - bitCount(bQ));
+  const RookEvaluation = R * (bitCount(wR) - bitCount(bR));
   const bishopAndKnightEvaluation =
-    3 * (bitCount(wB.or(wN)) - bitCount(bB.or(bN)));
-  const pawnEvaluation = bitCount(wP) - bitCount(bP);
+    B * (bitCount(wB.or(wN)) - bitCount(bB.or(bN)));
+  const pawnEvaluation = P * (bitCount(wP) - bitCount(bP));
+  const piecePopulationEval =
+    kingEvaluation +
+    QueenEvaluation +
+    RookEvaluation +
+    bishopAndKnightEvaluation +
+    pawnEvaluation;
+
+  const kingPositionalValue =
+    getPositionEval(wKingMG, wK) - getPositionEval(kingMG, bK);
+  const QueenPositonalValue =
+    getPositionEval(wQueen, wQ) - getPositionEval(queen, bQ);
+  const RookPositionalValue =
+    getPositionEval(wRooks, wR) - getPositionEval(rooks, bR);
+  const BishopPositionalValue =
+    getPositionEval(wBishop, wB) - getPositionEval(bishop, bB);
+  const KnightPositionalValue =
+    getPositionEval(wknight, wN) - getPositionEval(knight, bN);
+  const PawnPositionalValue =
+    getPositionEval(wPawn, wP) - getPositionEval(pawnMG, bP);
+  const positionalValue =
+    kingPositionalValue +
+    QueenPositonalValue +
+    RookPositionalValue +
+    BishopPositionalValue +
+    KnightPositionalValue +
+    PawnPositionalValue;
   /*
 f(p) = 200(K-K')
        + 9(Q-Q')
@@ -129,13 +181,7 @@ KQRBNP = number of kings, queens, rooks, bishops, knights and pawns
 D,S,I = doubled, blocked and isolated pawns
 M = Mobility (the number of legal moves)
 */
-  return (
-    kingEvaluation +
-    QueenEvaluation +
-    RookEvaluation +
-    bishopAndKnightEvaluation +
-    pawnEvaluation
-  );
+  return positionalValue + piecePopulationEval;
 };
 
 function bitCount(n: Long) {
@@ -143,6 +189,19 @@ function bitCount(n: Long) {
   bits += bitCount32(n.low);
   bits += bitCount32(n.high);
   return bits;
+}
+function getPositionEval(evalArray: number[], pieceBB: Long) {
+  let points = 0;
+  let iteratedBB = pieceBB;
+  let i = iteratedBB.countTrailingZeros();
+  while (i < 64) {
+    if (!pieceBB.and(Long.UONE.shl(i)).isZero()) {
+      points += evalArray[i];
+    }
+    iteratedBB = iteratedBB.and(Long.UONE.shl(i).not());
+    i = iteratedBB.countTrailingZeros();
+  }
+  return points;
 }
 /**
  * below not my own functions

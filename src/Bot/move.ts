@@ -45,7 +45,7 @@ const miniMax = (depth: number, color: Color): Promise<Move> => {
     const initialState = getState();
     let nextMove: Move | null = null;
 
-    mm(
+    const evals = mm(
       depth,
       initialState,
       color === 'w' ? true : false,
@@ -69,9 +69,34 @@ const miniMax = (depth: number, color: Color): Promise<Move> => {
           color: state.turn,
           state,
         })) {
-          let possibleMoves = pieceInfo.moves;
           let possibleAttacks = pieceInfo.attacks;
+          let possibleMoves = pieceInfo.moves.and(possibleAttacks.not());
 
+          while (!possibleAttacks.isZero()) {
+            const toBitIndex = possibleAttacks.countTrailingZeros();
+            const move = {
+              from: SquareBit[fromBitIndex] as Square,
+              to: SquareBit[toBitIndex] as Square,
+              promotion: 'q' as PieceSymbol,
+              color: pieceInfo.color,
+              piece: pieceInfo.piece,
+            };
+            const updatedState = getUpdatedState({ move, state });
+            const evaluate = mm(depth - 1, updatedState, false, alpha, beta);
+
+            if (maxEval < evaluate) {
+              maxEval = evaluate;
+
+              funcMove = move;
+            }
+            alpha = Math.max(alpha, evaluate);
+
+            if (evaluate >= beta) break;
+
+            possibleAttacks = possibleAttacks.and(
+              Long.UONE.shl(toBitIndex).not()
+            );
+          }
           while (!possibleMoves.isZero()) {
             const toBitIndex = possibleMoves.countTrailingZeros();
             const move = {
@@ -83,12 +108,16 @@ const miniMax = (depth: number, color: Color): Promise<Move> => {
             };
             const updatedState = getUpdatedState({ move, state });
             const evaluate = mm(depth - 1, updatedState, false, alpha, beta);
+
             if (maxEval < evaluate) {
               maxEval = evaluate;
+
               funcMove = move;
             }
-            alpha = Math.max(alpha, maxEval);
-            if (beta <= alpha) break;
+            alpha = Math.max(alpha, evaluate);
+
+            if (evaluate >= beta) break;
+
             possibleMoves = possibleMoves.and(Long.UONE.shl(toBitIndex).not());
           }
         }
@@ -102,8 +131,33 @@ const miniMax = (depth: number, color: Color): Promise<Move> => {
           color: state.turn,
           state,
         })) {
-          let possibleMoves = pieceInfo.moves;
           let possibleAttacks = pieceInfo.attacks;
+          let possibleMoves = pieceInfo.moves.and(possibleAttacks.not());
+          while (!possibleAttacks.isZero()) {
+            const toBitIndex = possibleAttacks.countTrailingZeros();
+            const move = {
+              from: SquareBit[fromBitIndex] as Square,
+              to: SquareBit[toBitIndex] as Square,
+              promotion: 'q' as PieceSymbol,
+              color: pieceInfo.color,
+              piece: pieceInfo.piece,
+            };
+            const updatedState = getUpdatedState({ move, state });
+
+            const evaluate = mm(depth - 1, updatedState, true, alpha, beta);
+
+            if (minEval > evaluate) {
+              minEval = evaluate;
+
+              funcMove = move;
+            }
+            beta = Math.min(alpha, evaluate);
+            if (evaluate <= alpha) break;
+
+            possibleAttacks = possibleAttacks.and(
+              Long.UONE.shl(toBitIndex).not()
+            );
+          }
           while (!possibleMoves.isZero()) {
             const toBitIndex = possibleMoves.countTrailingZeros();
             const move = {
@@ -116,13 +170,15 @@ const miniMax = (depth: number, color: Color): Promise<Move> => {
             const updatedState = getUpdatedState({ move, state });
 
             const evaluate = mm(depth - 1, updatedState, true, alpha, beta);
+
             if (minEval > evaluate) {
               minEval = evaluate;
-              beta = Math.min(alpha, minEval);
+
               funcMove = move;
             }
-            beta = Math.min(alpha, minEval);
-            if (beta <= alpha) break;
+            beta = Math.min(alpha, evaluate);
+            if (evaluate <= alpha) break;
+
             possibleMoves = possibleMoves.and(Long.UONE.shl(toBitIndex).not());
           }
         }
@@ -131,6 +187,7 @@ const miniMax = (depth: number, color: Color): Promise<Move> => {
         return minEval;
       }
     }
+    console.log(evals);
     if (nextMove) resolve(nextMove);
     reject(null);
   });
