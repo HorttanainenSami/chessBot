@@ -17,7 +17,7 @@ const useChess = () => {
   const [fen, setFen] = useState<string>(
     'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'
   );
-  const botSide = 'b';
+  let botSide: Color | 'wb' | null = 'wb';
 
   const [nextBMoves, setBNextMoves] = useState<getMovesReturn>(new Map());
   const [nextWMoves, setWNextMoves] = useState<getMovesReturn>(new Map());
@@ -31,10 +31,10 @@ const useChess = () => {
     getBotMove,
   } = useChessApi();
   useEffect(() => {
-    if (turn === botSide) {
+    if (botSide === 'wb' || botSide === turn) {
       getBotMoves();
     }
-  }, [turn]);
+  }, [fen]);
   const loadFen = (fen: string) => {
     loadFEN(fen).then(() => updateState());
   };
@@ -65,10 +65,24 @@ const useChess = () => {
   };
   const getBotMoves = async () => {
     console.log('getBotMoves');
-    const result = await getBotMove();
-
-    await updateState();
+    getBotMove().then(() => {
+      if (botSide === 'wb') {
+        updateBotMatch();
+      } else {
+        updateState();
+      }
+    });
   };
+  async function updateBotMatch() {
+    const p1 = await getState();
+    const p4 = await getFEN();
+    const [s, fen] = await Promise.all([p1, p4]);
+    const { gameState, mate, check, turn } = s;
+    setChecked(check);
+    setMate(mate);
+    setTurn(turn);
+    setFen(fen);
+  }
   async function updateState() {
     const p1 = await getState();
     const p2 = await getMovesB();
@@ -110,7 +124,6 @@ const useChess = () => {
   };
   // returns true if move is legal to perform
   // checked only when makeMove is performed
-
   const clearBoard = () =>
     loadFen('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1');
 
