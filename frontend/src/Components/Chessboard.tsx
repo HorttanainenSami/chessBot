@@ -1,13 +1,12 @@
 import React, { useState } from 'react';
 import { Chessboard as Cb } from 'react-chessboard';
-import useChess, { IMoves, getBitIndexes } from '../GameLogic/useChess';
+import useChess, { IMoves } from '../GameLogic/useChess';
 import {
   logger,
   bitPieces,
   getBitPiece,
   SquareBit,
 } from '../GameLogic/helpers';
-import Long from 'long';
 import { Square, Piece, Color } from '../Types';
 
 const buttonStyle = {
@@ -33,12 +32,12 @@ const Chessboard = () => {
     moves,
     isCheck,
     isMate,
+    getNextMove,
     turn,
     makeMove: chessMove,
     clearBoard,
   } = useChess();
   const [optionSquares, setOptionSquares] = useState({});
-  const [currentTimeout, setCurrentTimeout] = useState<NodeJS.Timeout>();
   function onDrop(
     sourceSquare: Square,
     targetSquare: Square,
@@ -95,6 +94,9 @@ const Chessboard = () => {
   return (
     <div style={boardWrapper}>
       <div>{getFen}</div>
+      <button style={buttonStyle} onClick={() => getNextMove()}>
+        next Move
+      </button>
       <div style={{ position: 'relative' }}>
         {isMate && <MateBanner clearBoard={clearBoard} turn={turn} />}
 
@@ -132,11 +134,13 @@ const Chessboard = () => {
         </button>
         <button
           style={buttonStyle}
-          onClick={() =>
-            loadFEN(
-              'rnbqkbnr/ppp3pp/8/3p4/4Bp2/4Q3/PPPP4/RNB1K1NR w KQkq d6 0 4'
-            )
-          }
+          onClick={() => loadFEN('6k1/8/8/2b5/8/8/5rr1/3RRN1K b - - 0 1')}
+        >
+          loadFen
+        </button>
+        <button
+          style={buttonStyle}
+          onClick={() => loadFEN('k7/8/8/8/8/6pp/8/7K b - - 0 1')}
         >
           loadFen
         </button>

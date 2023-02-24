@@ -9,6 +9,7 @@ export interface IMoves {
   piece: bitPieces;
   color: Color;
 }
+export type botSide = Color | 'both' | null;
 const useChess = () => {
   // save gamestate as bitboard
   const [checked, setChecked] = useState(false);
@@ -17,7 +18,7 @@ const useChess = () => {
   const [fen, setFen] = useState<string>(
     'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'
   );
-  let botSide: Color | 'wb' | null = 'wb';
+  let botSide: botSide = 'b';
 
   const [nextBMoves, setBNextMoves] = useState<getMovesReturn>(new Map());
   const [nextWMoves, setWNextMoves] = useState<getMovesReturn>(new Map());
@@ -31,7 +32,7 @@ const useChess = () => {
     getBotMove,
   } = useChessApi();
   useEffect(() => {
-    if (botSide === 'wb' || botSide === turn) {
+    if (botSide === 'both' || botSide === turn) {
       getBotMoves();
     }
   }, [fen]);
@@ -63,10 +64,13 @@ const useChess = () => {
     }
     return null;
   };
+  const getNextMove = async () => {
+    getBotMove();
+  };
   const getBotMoves = async () => {
     console.log('getBotMoves');
     getBotMove().then(() => {
-      if (botSide === 'wb') {
+      if (botSide === 'both') {
         updateBotMatch();
       } else {
         updateState();
@@ -139,6 +143,7 @@ const useChess = () => {
     isMate: mate,
     isCheck: checked,
     turn,
+    getNextMove,
   };
 };
 export const getBitIndexes = (bitString: Long) => {

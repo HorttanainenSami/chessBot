@@ -3,7 +3,7 @@ import { Response, Request } from 'express';
 import { Color } from './Types';
 import { botSide, getState, makeMove } from './GameLogic/gameStateChanger';
 import { getFEN, loadFEN } from './GameLogic/fen';
-import { move as botMove } from './Bot/move';
+import { move as botMove } from './Engine/engineMove';
 import { getMoves, getMovesReturn } from './GameLogic/move';
 
 moveRouter.get('/getState', (request: Request, response: Response) => {
@@ -38,10 +38,9 @@ moveRouter.get('/getFEN', (request: Request, response: Response) => {
   response.send(fen);
 });
 moveRouter.get('/getMoves/bot', (request: Request, response: Response) => {
-  if (botSide) {
-    botMove({ color: botSide })
-      .then(() => response.json(getFEN()))
-      .catch(() => response.json({ error: 'No bot in this game' }));
-  }
+  const { turn } = getState();
+  botMove({ color: turn })
+    .then(() => response.json(getFEN()))
+    .catch(() => response.json({ error: 'No bot in this game' }));
 });
 module.exports = moveRouter;
