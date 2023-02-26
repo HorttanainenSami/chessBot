@@ -39,6 +39,7 @@ moveRouter.get('/getFEN', (request: Request, response: Response) => {
 });
 moveRouter.get('/getMoves/bot', (request: Request, response: Response) => {
   const { turn } = getState();
+
   botMove({ color: turn })
     .then(() => response.json(getFEN()))
     .catch(() => response.json({ error: 'No bot in this game' }));

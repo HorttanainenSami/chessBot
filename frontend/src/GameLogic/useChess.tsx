@@ -14,11 +14,13 @@ const useChess = () => {
   // save gamestate as bitboard
   const [checked, setChecked] = useState(false);
   const [mate, setMate] = useState(false);
+  const [draw, setDraw] = useState(false);
+  const [stalemate, setStalemate] = useState(false);
   const [turn, setTurn] = useState<Color>('w');
   const [fen, setFen] = useState<string>(
     'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'
   );
-  let botSide: botSide = 'b';
+  let botSide: botSide = 'both';
 
   const [nextBMoves, setBNextMoves] = useState<getMovesReturn>(new Map());
   const [nextWMoves, setWNextMoves] = useState<getMovesReturn>(new Map());
@@ -65,17 +67,19 @@ const useChess = () => {
     return null;
   };
   const getNextMove = async () => {
-    getBotMove();
+    getBotMove({ color: turn });
   };
   const getBotMoves = async () => {
     console.log('getBotMoves');
-    getBotMove().then(() => {
-      if (botSide === 'both') {
-        updateBotMatch();
-      } else {
-        updateState();
-      }
-    });
+    getBotMove({ color: turn })
+      .then(() => {
+        if (botSide === 'both') {
+          updateBotMatch();
+        } else {
+          updateState();
+        }
+      })
+      .catch((e) => console.log(e));
   };
   async function updateBotMatch() {
     const p1 = await getState();
@@ -93,16 +97,20 @@ const useChess = () => {
     const p3 = await getMovesW();
     const p4 = await getFEN();
     const [s, b, w, fen] = await Promise.all([p1, p2, p3, p4]);
-    const { gameState, mate, check, turn } = s;
+    const { draw, gameState, mate, check, turn, stalemate } = s;
     setBNextMoves(b);
     setWNextMoves(w);
     setChecked(check);
     setMate(mate);
     setTurn(turn);
     setFen(fen);
+    setStalemate(stalemate);
+    setDraw(draw);
   }
   const saveMoveInServer = async (props: Move) => {
-    makeMove(props).finally(() => updateState());
+    makeMove(props)
+      .catch((e) => console.log('error', e))
+      .finally(() => updateState());
   };
   // Move object or Algerbaic notation ie. Ng3 means knigth moves for g3 coortidane
   const MakeMove = (props: Move) => {
@@ -142,7 +150,9 @@ const useChess = () => {
     moves,
     isMate: mate,
     isCheck: checked,
+    isDraw: draw,
     turn,
+    isStaleMate: stalemate,
     getNextMove,
   };
 };

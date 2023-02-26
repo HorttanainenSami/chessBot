@@ -270,6 +270,7 @@ export const updateGameState = (move: Move) => {
   castling = s.castling;
   bchHistory = s.bchHistory;
   draw = s.draw;
+  staleMate = s.staleMate;
   return true;
 };
 
@@ -466,6 +467,7 @@ export const setFEN = (
   mate = false;
   turn = color;
   draw = false;
+  staleMate = false;
   bchHistory = [];
   changeGameState(getState(), color);
 };
@@ -473,24 +475,36 @@ export const changeGameState = (state: state, color: Color) => {
   //if color is given as parameter or get next players color
   const initialPinned = calculatePinned(color, state.gameState);
   const initialCheck = isCheck({ color, state: state.gameState });
-
   check = initialCheck.check;
   checkingRays = initialCheck.checkingRays;
   doubleCheck = initialCheck.doubleCheck;
   pinned = initialPinned.pinned;
   const initialMate = isMate({ color, state: getState() });
+  const initialStaleMate = isStaleMate({ color, state });
   mate = initialMate;
+  staleMate = initialStaleMate;
 };
 
 export function isMate({ color, state }: { color: Color; state: state }) {
+  if (!canMove({ color, state }) && state.check) {
+    return true;
+  }
+  return false;
+}
+export function isStaleMate({ color, state }: { color: Color; state: state }) {
+  if (!canMove({ color, state }) && !state.check) {
+    return true;
+  }
+  return false;
+}
+export function canMove({ color, state }: { color: Color; state: state }) {
   const allMoves = getMoves({ color, state });
-  for (let asd of allMoves) {
-    if (!asd[1].moves.isZero()) {
-      return false;
+  for (let [, info] of allMoves) {
+    if (info.algebricAttacks.length !== 0 || info.algebricMoves.length !== 0) {
+      return true;
     }
   }
-
-  return true;
+  return false;
 }
 interface isCheckReturn {
   check: boolean;

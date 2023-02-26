@@ -20,6 +20,8 @@ interface IgetState {
   checkingRays: Long;
   mate: boolean;
   turn: Color;
+  stalemate: boolean;
+  draw: boolean;
 }
 const useChessApi = () => {
   const getState = async (): Promise<IgetState> => {
@@ -61,8 +63,14 @@ const useChessApi = () => {
 
     return map;
   };
-  const getBotMove = async (): Promise<IgetState> => {
-    const response = await axios.get<IgetState>(url + '/getMoves/bot');
+  const getBotMove = async ({
+    color,
+  }: {
+    color: Color;
+  }): Promise<IgetState> => {
+    const response = await axios.get<IgetState>(url + '/getMoves/bot', {
+      params: { color },
+    });
     console.log(response.data);
     return response.data;
   };

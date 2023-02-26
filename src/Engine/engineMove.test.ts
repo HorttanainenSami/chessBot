@@ -1,16 +1,16 @@
 import { loadFEN } from '../GameLogic/fen';
-import { getState } from '../GameLogic/gameStateChanger';
+import { getState, makeMove, reset } from '../GameLogic/gameStateChanger';
 import {
   getOrderedMoves,
   initializePolynomials,
   bchHash,
   polynomials,
+  enginesNextMove,
 } from './engineMove';
 import { Color, Move, Piece, PieceSymbol, Square } from '../Types';
 import { SquareBit } from '../GameLogic/helpers';
 import { getMoves } from '../GameLogic/move';
 import { bitCount } from './evaluation';
-import Long from 'long';
 
 describe('OrderMoves', () => {
   it('works with empty moves', () => {
@@ -152,7 +152,7 @@ describe('OrderMoves', () => {
   });
 });
 
-describe('zobrist bchHash', () => {
+describe('bchHash', () => {
   beforeAll(() => {
     initializePolynomials();
   });
@@ -268,6 +268,18 @@ describe('zobrist bchHash', () => {
 
     expect(uniqueHash.size).toBe(5);
   });
+  it('bchHash generates same bchHash for same state', () => {
+    const uniqueHash = new Set<number>();
+    loadFEN('rnbqkbnr/pppppppp/8/8/8/3PP3/PPP2PPP/RNBQKBNR w KQkq - 0 1');
+    const state1 = getState();
+    for (let i = 0; i < 50; i++) {
+      uniqueHash.add(
+        bchHash(state1.gameState, false, state1.castling, state1.draw)
+      );
+    }
+
+    expect(uniqueHash.size).toBe(1);
+  });
   it('bchHash values are unique', () => {
     let uniqueValues: Set<number> = new Set();
     for (let i = 0; i < 64; i++) {
@@ -282,5 +294,22 @@ describe('zobrist bchHash', () => {
         }
       }
     }
+  });
+});
+
+describe('alphabeta finds n mate when depth is n', () => {
+  beforeEach(() => {
+    reset();
+  });
+  it('finds mate in 2, when depth is 4', async () => {
+    loadFEN('8/4R3/2pk4/2p2K2/8/4N3/2P5/4Q3 w - - 0 1');
+    const wmove = await enginesNextMove(4, 'w');
+    makeMove(wmove);
+    const bmove = await enginesNextMove(4, 'b');
+    makeMove(bmove);
+    const wmove2 = await enginesNextMove(4, 'w');
+    makeMove(wmove2);
+    const state = getState();
+    expect(state.mate).toBe(true);
   });
 });

@@ -191,7 +191,7 @@ describe('updateGameState', () => {
   it('state changes after move is passed', () => {
     const color: Color = 'w';
 
-    const expectedMoves = Long.fromString('0', true, 16);
+    const expectedMoves = Long.fromString('1000ef00', true, 16);
     const from = 'd2';
     const to = 'd4';
     const piece = 0;
@@ -200,7 +200,8 @@ describe('updateGameState', () => {
     makeMove({ from, to, piece, color, promotion });
     const { gameState: state } = getState();
 
-    const asd = state[0];
+    const result = state[0];
+    expect(result).toEqual(expectedMoves);
   });
 });
 describe('getUpdatedState', () => {
@@ -239,8 +240,8 @@ describe('getUpdatedState', () => {
 
     const updated = getUpdatedState({ move, state });
 
-    expect(state.bchHistory.length).toEqual(1);
-    expect(updated.bchHistory.length).toEqual(2);
+    expect(state.bchHistory.length).toEqual(0);
+    expect(updated.bchHistory.length).toEqual(1);
   });
   it('making repetive moves should cause draw', () => {
     loadFEN('6k1/7r/8/8/8/4b3/5r2/3R1K2 w - - 0 1');
@@ -285,8 +286,8 @@ describe('getUpdatedState', () => {
     makeMove(move4);
     makeMove(move1);
     const updated = getState();
-    expect(state.bchHistory.length).toEqual(1);
-    expect(updated.bchHistory.length).toEqual(10);
+    expect(state.bchHistory.length).toEqual(0);
+    expect(updated.bchHistory.length).toEqual(9);
     expect(state.draw).toEqual(false);
     expect(updated.draw).toEqual(true);
   });

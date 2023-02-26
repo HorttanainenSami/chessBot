@@ -35,6 +35,8 @@ const Chessboard = () => {
     getNextMove,
     turn,
     makeMove: chessMove,
+    isStaleMate,
+    isDraw,
     clearBoard,
   } = useChess();
   const [optionSquares, setOptionSquares] = useState({});
@@ -98,7 +100,15 @@ const Chessboard = () => {
         next Move
       </button>
       <div style={{ position: 'relative' }}>
-        {isMate && <MateBanner clearBoard={clearBoard} turn={turn} />}
+        {isMate && (
+          <MateBanner title={`${turn} lost in mate`} clearBoard={clearBoard} />
+        )}
+        {isStaleMate && (
+          <MateBanner title={'Stalemate'} clearBoard={clearBoard} />
+        )}
+        {isDraw && (
+          <MateBanner title={'Draw by repetition'} clearBoard={clearBoard} />
+        )}
 
         <Cb
           id='PlayVsRandom'
@@ -146,11 +156,7 @@ const Chessboard = () => {
         </button>
         <button
           style={buttonStyle}
-          onClick={() =>
-            loadFEN(
-              'knBq1bnB/Q3pppp/1rp4K/2bN4/2B3R1/N3p2N/PPPPPPPR/BNBQ1BNB w - - 0 1'
-            )
-          }
+          onClick={() => loadFEN('8/4R3/2pk4/2p2K2/8/4N3/2P5/4Q3 w - - 0 1')}
         >
           loadFen
         </button>
@@ -224,14 +230,12 @@ const CheckBanner = ({ turn }: { turn: Color }) => {
   );
 };
 const MateBanner = ({
-  turn,
   clearBoard,
+  title,
 }: {
   clearBoard: () => void;
-  turn: Color;
+  title: string;
 }) => {
-  const beingChecked = turn === 'b' ? 'Black' : 'White';
-
   return (
     <>
       <div
@@ -258,7 +262,7 @@ const MateBanner = ({
           borderRadius: '25px',
         }}
       >
-        <p>{`${beingChecked} lost in check mate`}</p>
+        <p>{title}</p>
         <button
           style={buttonStyle}
           onClick={() => {

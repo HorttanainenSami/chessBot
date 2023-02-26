@@ -10,18 +10,12 @@ import Long from 'long';
 import { state } from '../GameLogic/gameStateChanger';
 import { evaluate } from './evaluation';
 
-enum type {
-  EXACT,
-  UPPER,
-  LOWER,
-}
 interface transpositionI {
   depth: number;
   value: number;
-  move: Move;
+  move: Move | null;
   alpha: number;
   beta: number;
-  type: type;
 }
 
 let transpositionTable = new Map<number, transpositionI>();
@@ -32,7 +26,7 @@ export const move = async ({ color }: { color: Color }) => {
     const start = Date.now();
 
     console.log('start');
-
+    transpositionTable.clear();
     const nextMiniMax = await enginesNextMove(4, color);
     const end = Date.now();
     console.log(`Execution time: ${end - start} ms`);
@@ -43,12 +37,12 @@ export const move = async ({ color }: { color: Color }) => {
   }
 };
 
-const enginesNextMove = (depth: number, color: Color): Promise<Move> => {
+export const enginesNextMove = (depth: number, color: Color): Promise<Move> => {
   let leaves = 0;
   return new Promise((resolve, reject) => {
     const initialState = getState();
     let nextMove: Move | null = null;
-    const evals = alphaBeta(
+    const evaluatioValue = alphaBeta(
       depth,
       initialState,
       color === 'w' ? true : false,
@@ -62,9 +56,10 @@ const enginesNextMove = (depth: number, color: Color): Promise<Move> => {
       maximizingPlayer: boolean,
       alpha: number,
       beta: number
-    ) {
+    ): number {
       leaves++;
-      if (depth === 0 || state.mate) return evaluate(state);
+      if (depth === 0 || state.mate || state.staleMate || state.draw)
+        return evaluate(state, depth);
       const hashNumber = bchHash(
         state.gameState,
         maximizingPlayer,
@@ -74,67 +69,62 @@ const enginesNextMove = (depth: number, color: Color): Promise<Move> => {
 
       const trans = transpositionTable.get(hashNumber);
       if (trans && trans.depth >= depth) {
-        if (trans.type === type.EXACT) {
-          nextMove = trans.move;
-          return trans.value;
-        } else if (trans.type === type.LOWER) {
-          alpha = Math.max(trans.alpha, alpha);
-        } else if (trans.type === type.UPPER) {
-          beta = Math.min(trans.beta, beta);
+        if (beta <= trans.alpha) {
+          if (trans.move) nextMove = trans.move;
+          return trans.alpha;
         }
-        if (beta <= alpha) {
-          nextMove = trans.move;
-          return trans.value;
+        if (trans.beta <= alpha) {
+          if (trans.move) nextMove = trans.move;
+          return trans.beta;
         }
+        alpha = Math.max(trans.alpha, alpha);
+        beta = Math.min(trans.beta, beta);
       }
 
       if (maximizingPlayer) {
-        let maxEval = Number.NEGATIVE_INFINITY;
-        let funcMove: Move | null = null;
+        let value = Number.NEGATIVE_INFINITY;
+        let currBestMove: Move | null = null;
         const orderedMoves = getOrderedMoves(state);
         for (let move of orderedMoves) {
           const updatedState = getUpdatedState({ move, state });
-          const evaluate = alphaBeta(
+          const evaluateValue = alphaBeta(
             depth - 1,
             updatedState,
             false,
             alpha,
             beta
           );
-
-          if (maxEval < evaluate) {
-            maxEval = evaluate;
-            funcMove = move;
+          if (value < evaluateValue) {
+            value = evaluateValue;
+            currBestMove = move;
           }
-          alpha = Math.max(alpha, evaluate);
+          alpha = Math.max(alpha, value);
 
-          if (beta <= alpha) {
+          if (beta <= value) {
             break;
           }
         }
 
-        if (funcMove) {
-          nextMove = funcMove;
-
-          updateTranspositionTable({
-            hashNumber,
-            value: maxEval,
-            move: funcMove,
-            alpha,
-            beta,
-            depth,
-          });
+        if (currBestMove !== null) {
+          nextMove = currBestMove;
         }
+        transpositionTable.set(hashNumber, {
+          value,
+          move: currBestMove,
+          alpha,
+          beta,
+          depth,
+        });
 
-        return maxEval;
+        return value;
       } else {
-        let minEval = Number.POSITIVE_INFINITY;
-        let funcMove: Move | null = null;
+        let value = Number.POSITIVE_INFINITY;
+        let currBestMove: Move | null = null;
         const orderedMoves = getOrderedMoves(state);
         for (let move of orderedMoves) {
           const updatedState = getUpdatedState({ move, state });
 
-          const evaluate = alphaBeta(
+          const evaluateValue = alphaBeta(
             depth - 1,
             updatedState,
             true,
@@ -142,71 +132,38 @@ const enginesNextMove = (depth: number, color: Color): Promise<Move> => {
             beta
           );
 
-          if (minEval > evaluate) {
-            minEval = evaluate;
-
-            funcMove = move;
+          if (value > evaluateValue) {
+            value = evaluateValue;
+            currBestMove = move;
           }
-          beta = Math.min(beta, evaluate);
-          if (beta <= alpha) {
+          beta = Math.min(beta, value);
+          if (value <= alpha) {
             break;
           }
         }
 
-        if (funcMove) {
-          nextMove = funcMove;
-
-          updateTranspositionTable({
-            hashNumber,
-            value: minEval,
-            move: funcMove,
-            alpha,
-            beta,
-            depth,
-          });
+        if (currBestMove !== null) {
+          nextMove = currBestMove;
         }
 
-        return minEval;
+        transpositionTable.set(hashNumber, {
+          value,
+          move: currBestMove,
+          alpha,
+          beta,
+          depth,
+        });
+
+        return value;
       }
     }
 
-    console.log(evals);
+    console.log(evaluatioValue);
     console.log(nextMove);
     if (nextMove) resolve(nextMove);
     reject(null);
   });
 };
-interface updateTranspositionTableI {
-  hashNumber: number;
-  depth: number;
-  value: number;
-  alpha: number;
-  beta: number;
-  move: Move;
-}
-function updateTranspositionTable({
-  hashNumber,
-  depth,
-  value,
-  alpha,
-  beta,
-  move,
-}: updateTranspositionTableI) {
-  let initialType = type.EXACT;
-  if (value <= alpha) {
-    initialType = type.UPPER;
-  } else if (value >= beta) {
-    initialType = type.LOWER;
-  }
-  transpositionTable.set(hashNumber, {
-    value,
-    type: initialType,
-    depth,
-    beta,
-    alpha,
-    move,
-  });
-}
 
 /**
  *  gets all moves for side in turn to move and orders them by attacking moves for first in array
@@ -284,13 +241,22 @@ export function bchHash(
   // Return the hash value
   return h;
 }
-initializePolynomials();
-export function initializePolynomials() {
+export const initializePolynomials = () => {
   const q = 2 ** 31; // A prime number slightly smaller than p
+  const uniqueValues = new Set();
 
+  const uniqueValue = () => {
+    let value = Math.floor(Math.random() * q);
+    while (uniqueValues.has(value)) {
+      value = Math.floor(Math.random() * q);
+    }
+    uniqueValues.add(value);
+    return value;
+  };
   polynomials = Array.from({ length: 64 }, () =>
     Array.from({ length: 12 }, () =>
-      Array.from({ length: 64 }, () => Math.floor(Math.random() * q))
+      Array.from({ length: 64 }, () => uniqueValue())
     )
   );
-}
+};
+initializePolynomials();
