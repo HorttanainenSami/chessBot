@@ -1,13 +1,12 @@
 import React, { useState } from 'react';
 import { Chessboard as Cb } from 'react-chessboard';
-import useChess, { IMoves, getBitIndexes } from '../GameLogic/useChess';
+import useChess, { IMoves } from '../GameLogic/useChess';
 import {
   logger,
   bitPieces,
   getBitPiece,
   SquareBit,
 } from '../GameLogic/helpers';
-import Long from 'long';
 import { Square, Piece, Color } from '../Types';
 
 const buttonStyle = {
@@ -33,12 +32,14 @@ const Chessboard = () => {
     moves,
     isCheck,
     isMate,
+    getNextMove,
     turn,
     makeMove: chessMove,
+    isStaleMate,
+    isDraw,
     clearBoard,
   } = useChess();
   const [optionSquares, setOptionSquares] = useState({});
-  const [currentTimeout, setCurrentTimeout] = useState<NodeJS.Timeout>();
   function onDrop(
     sourceSquare: Square,
     targetSquare: Square,
@@ -95,8 +96,19 @@ const Chessboard = () => {
   return (
     <div style={boardWrapper}>
       <div>{getFen}</div>
+      <button style={buttonStyle} onClick={() => getNextMove()}>
+        next Move
+      </button>
       <div style={{ position: 'relative' }}>
-        {isMate && <MateBanner clearBoard={clearBoard} turn={turn} />}
+        {isMate && (
+          <MateBanner title={`${turn} lost in mate`} clearBoard={clearBoard} />
+        )}
+        {isStaleMate && (
+          <MateBanner title={'Stalemate'} clearBoard={clearBoard} />
+        )}
+        {isDraw && (
+          <MateBanner title={'Draw by repetition'} clearBoard={clearBoard} />
+        )}
 
         <Cb
           id='PlayVsRandom'
@@ -124,27 +136,27 @@ const Chessboard = () => {
         </button>
         <button
           style={buttonStyle}
-          onClick={() => loadFEN('8/8/8/pppppppp/PPPPPPPP/8/8/8 w - - 0 4')}
+          onClick={() =>
+            loadFEN('6k1/pp4p1/2p5/2bp4/8/P5Pb/1P3rrP/2BRRN1K b - - 0 1')
+          }
         >
           loadpawnEat
         </button>
         <button
           style={buttonStyle}
-          onClick={() =>
-            loadFEN(
-              'rnbqkbnr/ppp3pp/8/3p4/4Bp2/4Q3/PPPP4/RNB1K1NR w KQkq d6 0 4'
-            )
-          }
+          onClick={() => loadFEN('6k1/8/8/2b5/8/8/5rr1/3RRN1K b - - 0 1')}
         >
           loadFen
         </button>
         <button
           style={buttonStyle}
-          onClick={() =>
-            loadFEN(
-              'knBq1bnB/Q3pppp/1rp4K/2bN4/2B3R1/N3p2N/PPPPPPPR/BNBQ1BNB w - - 0 1'
-            )
-          }
+          onClick={() => loadFEN('k7/8/8/8/8/6pp/8/7K b - - 0 1')}
+        >
+          loadFen
+        </button>
+        <button
+          style={buttonStyle}
+          onClick={() => loadFEN('8/4R3/2pk4/2p2K2/8/4N3/2P5/4Q3 w - - 0 1')}
         >
           loadFen
         </button>
@@ -218,14 +230,12 @@ const CheckBanner = ({ turn }: { turn: Color }) => {
   );
 };
 const MateBanner = ({
-  turn,
   clearBoard,
+  title,
 }: {
   clearBoard: () => void;
-  turn: Color;
+  title: string;
 }) => {
-  const beingChecked = turn === 'b' ? 'Black' : 'White';
-
   return (
     <>
       <div
@@ -252,7 +262,7 @@ const MateBanner = ({
           borderRadius: '25px',
         }}
       >
-        <p>{`${beingChecked} lost in check mate`}</p>
+        <p>{title}</p>
         <button
           style={buttonStyle}
           onClick={() => {

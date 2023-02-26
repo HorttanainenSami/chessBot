@@ -6,12 +6,13 @@ import {
   getKing,
   getKnight,
   getPawn,
+  toIndexArray,
 } from './move';
 import { loadFEN } from './fen';
 import { getState } from './gameStateChanger';
 import Long from 'long';
 import { Color } from '../Types';
-import { logger } from './helpers';
+import { SquareBit, logger } from './helpers';
 
 //--------------------------------------------------------/
 //AbsolutelyPinned
@@ -1417,5 +1418,46 @@ describe('squareIsAttacked', () => {
         state,
       })
     ).toEqual(true);
+  });
+});
+
+//--------------------------------------------------------/
+//toArrayIndexes
+//--------------------------------------------------------/
+describe('toIndexArray', () => {
+  it('should return correct array to empty', () => {
+    const result = toIndexArray(Long.UZERO);
+    const expectedResult: SquareBit[] = [];
+    expect(result).toEqual(expectedResult);
+  });
+  it('should return correct array to full BB', () => {
+    const result = toIndexArray(Long.MAX_UNSIGNED_VALUE);
+    const expectedResult: SquareBit[] = Array.from({ length: 64 }, (_, i) => i);
+    expect(result).toEqual(expectedResult);
+  });
+  it('should return correct array to containing one in different indexes', () => {
+    const result = toIndexArray(Long.UONE);
+    const expectedResult: SquareBit[] = [0];
+    const result1 = toIndexArray(Long.UONE.shl(4));
+    const expectedResult1: SquareBit[] = [4];
+    const result2 = toIndexArray(Long.UONE.shl(53));
+    const expectedResult2: SquareBit[] = [53];
+    const result3 = toIndexArray(Long.UONE.shl(63));
+    const expectedResult3: SquareBit[] = [63];
+    const result4 = toIndexArray(Long.UONE.shl(35));
+    const expectedResult4: SquareBit[] = [35];
+    expect(result).toEqual(expectedResult);
+    expect(result1).toEqual(expectedResult1);
+    expect(result2).toEqual(expectedResult2);
+    expect(result3).toEqual(expectedResult3);
+    expect(result4).toEqual(expectedResult4);
+  });
+  it('should return correct array to containing multiple in different indexes', () => {
+    const result = toIndexArray(Long.fromString('8040201008040201', true, 16));
+    const expectedResult: SquareBit[] = [0, 9, 18, 27, 36, 45, 54, 63];
+    const result1 = toIndexArray(Long.fromString('2020040020000000', true, 16));
+    const expectedResult1: SquareBit[] = [29, 42, 53, 61];
+    expect(result).toEqual(expectedResult);
+    expect(result1).toEqual(expectedResult1);
   });
 });

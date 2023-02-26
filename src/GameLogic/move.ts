@@ -34,6 +34,8 @@ export type getMovesReturn = Map<SquareBit, IAllMoves>;
 export interface IAllMoves {
   piece: bitPieces;
   color: Color;
+  algebricMoves: SquareBit[];
+  algebricAttacks: SquareBit[];
   moves: Long;
   attacks: Long;
 }
@@ -44,7 +46,11 @@ export const getMoves = ({
   color: Color;
   state: state;
 }): getMovesReturn => {
-  const { gameState } = state;
+  const array: getMovesReturn = new Map();
+
+  const { gameState, mate, draw } = state;
+  if (mate || draw) return array;
+
   const blackOccupiedBits = gameState.reduce((acc, curr, i) => {
     if (i % 2 === 0) return acc;
     return acc.or(curr);
@@ -55,7 +61,6 @@ export const getMoves = ({
   );
   const whiteOccupiedBits = occupiedBits.xor(blackOccupiedBits);
   const colorHelper = color === 'w' ? 0 : 1;
-  const array: getMovesReturn = new Map();
   for (let piece = colorHelper; piece <= 11; piece += 2) {
     let pieces = gameState[piece];
     while (!pieces.isZero()) {
@@ -77,13 +82,33 @@ export const getMoves = ({
           color === 'w'
             ? blackOccupiedBits.and(legalMove)
             : whiteOccupiedBits.and(legalMove);
-        array.set(fromBitIndex, { piece, color, moves: legalMove, attacks });
+        array.set(fromBitIndex, {
+          piece,
+          color,
+          algebricMoves: toIndexArray(legalMove.and(attacks.not())),
+          algebricAttacks: toIndexArray(attacks),
+          moves: legalMove,
+          attacks,
+        });
       }
 
       pieces = pieces.and(Long.UONE.shl(fromBitIndex).not());
     }
   }
   return array;
+};
+export const toIndexArray = (BB: Long) => {
+  let i = BB;
+  const IndexArray: SquareBit[] = [];
+  while (!i.isZero()) {
+    const square = i.countTrailingZeros();
+    if (square === 64) {
+      break;
+    }
+    IndexArray.push(square);
+    i = i.and(Long.UONE.shl(square).not());
+  }
+  return IndexArray;
 };
 export const getMove = ({
   move,

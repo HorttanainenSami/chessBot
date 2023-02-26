@@ -2,10 +2,9 @@ import Long from 'long';
 import _ from 'lodash';
 import { Color, Move } from '../Types';
 import { bishopAttacks, moveMask, rookLegalAttacks } from './moveMask';
-import { move as botMove } from '../Bot/move';
 import { SquareBit, bitPieces, logger } from './helpers';
 import { getMoves, kingIsAttackedFrom } from './move';
-import { is } from '@babel/types';
+import { bchHash } from '../Engine/engineMove';
 export let gameState: Long[] = [
   //pawns
   Long.fromString('0xff00', true, 16), //w
@@ -26,6 +25,8 @@ export let gameState: Long[] = [
   Long.fromString('0x8', true, 16), //w
   Long.fromString('0x800000000000000', true, 16), //b
 ];
+export let moveHistory: number[] = [];
+export let bchHistory: number[] = [];
 export let elPassant: SquareBit | null = null;
 export let pinned: Long = Long.UZERO;
 export let check = false;
@@ -34,10 +35,13 @@ export let checkingRays = Long.UZERO;
 export let mate = false;
 export let turn: Color = 'w';
 export let castling = 'KQkq';
+export let staleMate = false;
 // can be used to set tie if reaches to 50
 export let halfMove = 0;
 export let fullMove = 1;
 export let botSide: null | Color = 'b';
+export let lastMoves: Move[] = [];
+export let draw = false;
 export const setElPassant = (s: SquareBit | null) => (elPassant = s);
 export const setHalfMove = (s: number) => (halfMove = s);
 export const setFullMove = (s: number) => (fullMove = s);
@@ -71,6 +75,9 @@ export function reset() {
   checkingRays = Long.UZERO;
   mate = false;
   turn = 'w';
+  draw = false;
+  staleMate = false;
+  bchHistory = [];
 }
 export interface state {
   gameState: Long[];
@@ -84,6 +91,10 @@ export interface state {
   halfMove: number;
   fullMove: number;
   castling: string;
+  lastMoves: Move[];
+  draw: boolean;
+  bchHistory: number[];
+  staleMate: boolean;
 }
 export const getState = (): state => ({
   gameState,
@@ -97,6 +108,10 @@ export const getState = (): state => ({
   halfMove,
   fullMove,
   castling,
+  lastMoves,
+  draw,
+  bchHistory,
+  staleMate,
 });
 export const getUpdatedState = ({
   move,
@@ -113,7 +128,7 @@ export const getUpdatedState = ({
   const fromBitIndex = SquareBit[from];
   const toMask = Long.UONE.shiftLeft(toBitIndex);
   const fromMask = Long.UONE.shiftLeft(fromBitIndex);
-  //TODO make castle
+
   //if piece moved is king or rook remove castling
   if (piece === 10) {
     if (fromBitIndex === 3 && toBitIndex === 1) {
@@ -212,9 +227,30 @@ export const getUpdatedState = ({
 
   const mate = isMate({ color: iState.turn, state: iState });
   iState.mate = mate;
-
+  const { hash, draw } = getHashAndDraw(iState);
+  iState.bchHistory.push(hash);
+  iState.draw = draw;
   return iState;
 };
+function getHashAndDraw(state: state) {
+  //fetch current hash
+  const hash = bchHash(
+    state.gameState,
+    state.turn === 'w',
+    state.castling,
+    state.draw
+  );
+  //check history of alike hashcodes
+  const repetition = state.bchHistory.filter((r) => r === hash).length;
+  //if repetition is greater than 2, return new hash with draw imbedded
+  if (repetition >= 2) {
+    return {
+      hash: bchHash(state.gameState, state.turn === 'w', state.castling, true),
+      draw: true,
+    };
+  }
+  return { hash, draw: false };
+}
 /**
  * should be used to update gamestate, when making move
  * @param move front end apis given data
@@ -232,8 +268,10 @@ export const updateGameState = (move: Move) => {
   halfMove = s.halfMove;
   fullMove = s.fullMove;
   castling = s.castling;
+  bchHistory = s.bchHistory;
+  draw = s.draw;
+  staleMate = s.staleMate;
   return true;
-  //if (turn === botSide) botMove({ color: botSide });
 };
 
 export const checkIfElpassant = (toBitIndex: number, piece: bitPieces) => {
@@ -428,30 +466,45 @@ export const setFEN = (
   doubleCheck = false;
   mate = false;
   turn = color;
+  draw = false;
+  staleMate = false;
+  bchHistory = [];
   changeGameState(getState(), color);
 };
 export const changeGameState = (state: state, color: Color) => {
   //if color is given as parameter or get next players color
   const initialPinned = calculatePinned(color, state.gameState);
   const initialCheck = isCheck({ color, state: state.gameState });
-
   check = initialCheck.check;
   checkingRays = initialCheck.checkingRays;
   doubleCheck = initialCheck.doubleCheck;
   pinned = initialPinned.pinned;
   const initialMate = isMate({ color, state: getState() });
+  const initialStaleMate = isStaleMate({ color, state });
   mate = initialMate;
+  staleMate = initialStaleMate;
 };
 
 export function isMate({ color, state }: { color: Color; state: state }) {
+  if (!canMove({ color, state }) && state.check) {
+    return true;
+  }
+  return false;
+}
+export function isStaleMate({ color, state }: { color: Color; state: state }) {
+  if (!canMove({ color, state }) && !state.check) {
+    return true;
+  }
+  return false;
+}
+export function canMove({ color, state }: { color: Color; state: state }) {
   const allMoves = getMoves({ color, state });
-  for (let asd of allMoves) {
-    if (!asd[1].moves.isZero()) {
-      return false;
+  for (let [, info] of allMoves) {
+    if (info.algebricAttacks.length !== 0 || info.algebricMoves.length !== 0) {
+      return true;
     }
   }
-
-  return true;
+  return false;
 }
 interface isCheckReturn {
   check: boolean;

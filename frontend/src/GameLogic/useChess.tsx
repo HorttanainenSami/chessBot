@@ -9,15 +9,18 @@ export interface IMoves {
   piece: bitPieces;
   color: Color;
 }
+export type botSide = Color | 'both' | null;
 const useChess = () => {
   // save gamestate as bitboard
   const [checked, setChecked] = useState(false);
   const [mate, setMate] = useState(false);
+  const [draw, setDraw] = useState(false);
+  const [stalemate, setStalemate] = useState(false);
   const [turn, setTurn] = useState<Color>('w');
   const [fen, setFen] = useState<string>(
     'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'
   );
-  const botSide = 'b';
+  let botSide: botSide = 'both';
 
   const [nextBMoves, setBNextMoves] = useState<getMovesReturn>(new Map());
   const [nextWMoves, setWNextMoves] = useState<getMovesReturn>(new Map());
@@ -31,10 +34,10 @@ const useChess = () => {
     getBotMove,
   } = useChessApi();
   useEffect(() => {
-    if (turn === botSide) {
+    if (botSide === 'both' || botSide === turn) {
       getBotMoves();
     }
-  }, [turn]);
+  }, [fen]);
   const loadFen = (fen: string) => {
     loadFEN(fen).then(() => updateState());
   };
@@ -63,28 +66,51 @@ const useChess = () => {
     }
     return null;
   };
+  const getNextMove = async () => {
+    getBotMove({ color: turn });
+  };
   const getBotMoves = async () => {
     console.log('getBotMoves');
-    const result = await getBotMove();
-
-    await updateState();
+    getBotMove({ color: turn })
+      .then(() => {
+        if (botSide === 'both') {
+          updateBotMatch();
+        } else {
+          updateState();
+        }
+      })
+      .catch((e) => console.log(e));
   };
+  async function updateBotMatch() {
+    const p1 = await getState();
+    const p4 = await getFEN();
+    const [s, fen] = await Promise.all([p1, p4]);
+    const { gameState, mate, check, turn } = s;
+    setChecked(check);
+    setMate(mate);
+    setTurn(turn);
+    setFen(fen);
+  }
   async function updateState() {
     const p1 = await getState();
     const p2 = await getMovesB();
     const p3 = await getMovesW();
     const p4 = await getFEN();
     const [s, b, w, fen] = await Promise.all([p1, p2, p3, p4]);
-    const { gameState, mate, check, turn } = s;
+    const { draw, gameState, mate, check, turn, stalemate } = s;
     setBNextMoves(b);
     setWNextMoves(w);
     setChecked(check);
     setMate(mate);
     setTurn(turn);
     setFen(fen);
+    setStalemate(stalemate);
+    setDraw(draw);
   }
   const saveMoveInServer = async (props: Move) => {
-    makeMove(props).finally(() => updateState());
+    makeMove(props)
+      .catch((e) => console.log('error', e))
+      .finally(() => updateState());
   };
   // Move object or Algerbaic notation ie. Ng3 means knigth moves for g3 coortidane
   const MakeMove = (props: Move) => {
@@ -110,7 +136,6 @@ const useChess = () => {
   };
   // returns true if move is legal to perform
   // checked only when makeMove is performed
-
   const clearBoard = () =>
     loadFen('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1');
 
@@ -125,7 +150,10 @@ const useChess = () => {
     moves,
     isMate: mate,
     isCheck: checked,
+    isDraw: draw,
     turn,
+    isStaleMate: stalemate,
+    getNextMove,
   };
 };
 export const getBitIndexes = (bitString: Long) => {

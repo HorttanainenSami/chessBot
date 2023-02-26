@@ -191,7 +191,7 @@ describe('updateGameState', () => {
   it('state changes after move is passed', () => {
     const color: Color = 'w';
 
-    const expectedMoves = Long.fromString('0', true, 16);
+    const expectedMoves = Long.fromString('1000ef00', true, 16);
     const from = 'd2';
     const to = 'd4';
     const piece = 0;
@@ -200,14 +200,14 @@ describe('updateGameState', () => {
     makeMove({ from, to, piece, color, promotion });
     const { gameState: state } = getState();
 
-    const asd = state[0];
+    const result = state[0];
+    expect(result).toEqual(expectedMoves);
   });
 });
 describe('getUpdatedState', () => {
   it('getUpdatedState should not update real state', () => {
     const color: Color = 'w';
     const state = getState();
-    console.log(state.gameState[0].toString(16));
     const fromBitIndex = state.gameState[0].countTrailingZeros();
     const toBitIndex = Long.UONE.shl(fromBitIndex + 8).countTrailingZeros();
     const move: Move = {
@@ -221,9 +221,74 @@ describe('getUpdatedState', () => {
     const updated = getUpdatedState({ move, state });
 
     const { gameState } = getState();
-    console.log(state.gameState[0].toString(16));
 
     expect(state.gameState[0]).toEqual(gameState[0]);
     expect(updated.gameState[0]).not.toEqual(gameState[0]);
+  });
+  it('making moves should increment bchHistory', () => {
+    const color: Color = 'w';
+    const state = getState();
+    const fromBitIndex = state.gameState[0].countTrailingZeros();
+    const toBitIndex = Long.UONE.shl(fromBitIndex + 8).countTrailingZeros();
+    const move: Move = {
+      from: SquareBit[fromBitIndex] as Square,
+      to: SquareBit[toBitIndex] as Square,
+      promotion: 'q' as PieceSymbol,
+      color,
+      piece: 0,
+    };
+
+    const updated = getUpdatedState({ move, state });
+
+    expect(state.bchHistory.length).toEqual(0);
+    expect(updated.bchHistory.length).toEqual(1);
+  });
+  it('making repetive moves should cause draw', () => {
+    loadFEN('6k1/7r/8/8/8/4b3/5r2/3R1K2 w - - 0 1');
+    const state = getState();
+    const move1: Move = {
+      from: 'f1',
+      to: 'g1',
+      promotion: 'q' as PieceSymbol,
+      color: 'w',
+      piece: 10,
+    };
+
+    const move2: Move = {
+      from: 'g8',
+      to: 'g7',
+      promotion: 'q' as PieceSymbol,
+      color: 'b',
+      piece: 11,
+    };
+    const move3: Move = {
+      from: 'g1',
+      to: 'f1',
+      promotion: 'q' as PieceSymbol,
+      color: 'w',
+      piece: 10,
+    };
+
+    const move4: Move = {
+      from: 'g7',
+      to: 'g8',
+      promotion: 'q' as PieceSymbol,
+      color: 'b',
+      piece: 11,
+    };
+    makeMove(move1);
+    makeMove(move2);
+    makeMove(move3);
+    makeMove(move4);
+    makeMove(move1);
+    makeMove(move2);
+    makeMove(move3);
+    makeMove(move4);
+    makeMove(move1);
+    const updated = getState();
+    expect(state.bchHistory.length).toEqual(0);
+    expect(updated.bchHistory.length).toEqual(9);
+    expect(state.draw).toEqual(false);
+    expect(updated.draw).toEqual(true);
   });
 });
