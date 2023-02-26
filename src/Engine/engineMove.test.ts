@@ -302,12 +302,12 @@ describe('alphabeta finds n mate when depth is n', () => {
     reset();
   });
   it('finds mate in 2, when depth is 4', async () => {
-    loadFEN('8/4R3/2pk4/2p2K2/8/4N3/2P5/4Q3 w - - 0 1');
-    const wmove = await enginesNextMove(4, 'w');
+    loadFEN('6k1/pp4p1/2p5/2bp4/8/P5Pb/1P3rrP/2BRRN1K b - - 0 3');
+    const wmove = await enginesNextMove(4, 'b');
     makeMove(wmove);
-    const bmove = await enginesNextMove(4, 'b');
+    const bmove = await enginesNextMove(4, 'w');
     makeMove(bmove);
-    const wmove2 = await enginesNextMove(4, 'w');
+    const wmove2 = await enginesNextMove(4, 'b');
     makeMove(wmove2);
     const state = getState();
     expect(state.mate).toBe(true);
