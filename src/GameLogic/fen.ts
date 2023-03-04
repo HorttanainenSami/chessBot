@@ -1,22 +1,18 @@
 import Long from 'long';
 import { SquareBit, bitPieces, checkBitAt, isNumeric } from './helpers';
 import { setFEN, getState } from './gameStateChanger';
+import z from 'zod';
+import { sortAndDeduplicateDiagnostics } from 'typescript';
+import { Color, Square } from '../Types';
 
+/**
+ * Load gamestate that reprecents FEN notations board state
+ * @param Fen {string} FEN notation of boardstate
+ * @returns new state of game
+ */
 export const loadFEN = (Fen: string) => {
-  const splittedFen = Fen.split(' ');
-  if (splittedFen.length != 6) throw new Error('Fen not in correct form');
-
-  const state = splittedFen[0] as string;
-  const turn = splittedFen[1] as 'w' | 'b';
-  const castling = splittedFen[2] as string;
-  const elPassant = splittedFen[3] as keyof typeof SquareBit;
-  const halfMoves = splittedFen[4] as string;
-  const fullMoves = splittedFen[5] as string;
-
-  if (!isNumeric(fullMoves))
-    throw new Error('Fen fullMoves notated incorrectly');
-  if (!isNumeric(halfMoves))
-    throw new Error('Fen halfMoves notated incorrectly');
+  const { state, turn, castling, elPassant, halfMoves, fullMoves } =
+    parseFen.parse(Fen);
 
   //iterate fen
   type PieceIteration = {
@@ -100,7 +96,10 @@ export const loadFEN = (Fen: string) => {
   );
   return getState();
 };
-
+/**
+ *  get Fen of current gamestate
+ * @returns {string} returns FEN from gamestate
+ */
 export const getFEN = () => {
   const { gameState, turn, castling, elPassant, halfMove, fullMove } =
     getState();
@@ -147,7 +146,77 @@ export const getFEN = () => {
   }
   return Fen.concat(
     ` ${turn} ${castling} ${
-      elPassant === null ? '-' : Object.values(SquareBit)[elPassant]
+      !elPassant ? '-' : Object.values(SquareBit)[elPassant]
     } ${halfMove} ${fullMove}`
   );
 };
+
+/**
+ * parse frontend FEN input to be in correct form
+ */
+const parseFen = z.string().transform((val, ctx) => {
+  const splitted = val.split(' ');
+  if (splitted.length !== 6) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Fen in wrong format',
+    });
+    return z.NEVER;
+  }
+  const state = splitted[0].split('/');
+  if (state.length !== 8) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Fen doesnt contain correct amounth of ranks',
+    });
+    return z.NEVER;
+  }
+  const turn = splitted[1];
+  if (turn !== 'b' && turn !== 'w') {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Fen must contain color in turn',
+    });
+    return z.NEVER;
+  }
+  const castling = splitted[2].match('(^[K]?[Q]?[k]?[q]?$)|^-$');
+  if (!castling || castling === null) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Fen must contain castling rights ' + splitted[2],
+    });
+    return z.NEVER;
+  }
+  const elPassant = splitted[3].match('^([a-h][1-8])$|^-$');
+  if (!elPassant) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Fen must contain elpassant or -',
+    });
+    return z.NEVER;
+  }
+  const halfMoves = Number(splitted[4]);
+  if (isNaN(halfMoves)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Halfmoves must be number',
+    });
+    return z.NEVER;
+  }
+  const fullMoves = Number(splitted[5]);
+  if (isNaN(fullMoves)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Fullmoves must be number',
+    });
+    return z.NEVER;
+  }
+  return {
+    state: splitted[0],
+    turn: turn as Color,
+    castling: castling[0] as unknown as string,
+    halfMoves,
+    fullMoves,
+    elPassant: elPassant[0] as unknown as Square,
+  };
+});

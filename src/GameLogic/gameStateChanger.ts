@@ -5,6 +5,7 @@ import { bishopAttacks, moveMask, rookLegalAttacks } from './moveMask';
 import { SquareBit, bitPieces, logger } from './helpers';
 import { getMoves, kingIsAttackedFrom } from './move';
 import { bchHash } from '../Engine/engineMove';
+//declare
 export let gameState: Long[] = [
   //pawns
   Long.fromString('0xff00', true, 16), //w
@@ -408,11 +409,12 @@ export function xrayRookAttacks({
   blockers: Long;
   fromBitIndex: number;
 }) {
-  const occupiedWOSelf = occupied.xor(Long.UONE.shiftLeft(fromBitIndex));
+  const occupiedWOSelf = occupied.and(Long.UONE.shiftLeft(fromBitIndex).not());
   const attack = rookLegalAttacks({
-    fromBitIndex: fromBitIndex,
+    fromBitIndex,
     occupiedBits: occupied,
   }).and(occupiedWOSelf);
+
   const onlyBlockers = blockers.and(attack);
   const attacksBehindBlockers = rookLegalAttacks({
     fromBitIndex: fromBitIndex,
@@ -437,7 +439,7 @@ export function xrayBishopAttacks({
   blockers: Long;
   fromBitIndex: number;
 }) {
-  const occupiedWOSelf = occupied.xor(Long.UONE.shiftLeft(fromBitIndex));
+  const occupiedWOSelf = occupied.and(Long.UONE.shiftLeft(fromBitIndex).not());
   const attack = bishopAttacks({
     fromBitIndex: fromBitIndex,
     occupiedBits: occupied,

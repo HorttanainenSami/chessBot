@@ -22,6 +22,7 @@ export const logger = (l: Long, text?: string) => {
 };
 
 export function isNumeric(expectedValue: any) {
+  if (typeof expectedValue === 'number') return true;
   if (
     typeof expectedValue === 'string' &&
     !Number.isNaN(Number(expectedValue))

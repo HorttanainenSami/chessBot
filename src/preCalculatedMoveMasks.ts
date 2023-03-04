@@ -1,6 +1,7 @@
 import Long from 'long';
-import { logger } from './GameLogic/helpers';
-
+/**
+ * initialize all precalculated moves
+ */
 export function initializePreCalculatedMoves() {
   declareBisopMoves();
   generateArrRectangular();
@@ -51,15 +52,15 @@ const kingMoves: (null | Long)[] = Array.apply(null, Array(64)).map(
 const diagonalMask = new Long(0x10204080, 0x1020408, true);
 const antiDiagonalMask = new Long(0x8040201, 0x80402010, true);
 
-/////////////////////RECTANGULAR ARRAY////////////////////////////////
-// generates ArrRectangular that contains mask from to square like Arr[from][to] = mask
+/**
+ * generates ArrRectangular that contains mask from-to
+ */
 export function generateArrRectangular() {
   for (let from = 0; from <= 63; from++) {
     const rank = ~~(from / 8);
     const file = from % 8;
     const arrInISquare = Array.apply(null, Array());
     arrInISquare[from] = Long.UZERO;
-    //console.log(from, rank, file);
     rankSquares({ from, rank, file });
     fileSquares({ from, rank, file });
     diagonal({ from, rank, file });
@@ -145,6 +146,12 @@ interface IinBetween {
   from: number;
   to: number;
 }
+/**
+ *
+ * @param from {number} squareIndex
+ * @param to {nubmer} squareIndex
+ * @returns {Long} mask between from and to all bits set
+ */
 export function inBetween(from: number, to: number) {
   const fromArr = arrRectangular[from] as Array<Long | null>;
   return fromArr[to] as Long | null;
@@ -152,6 +159,13 @@ export function inBetween(from: number, to: number) {
 export interface ImayMove extends IinBetween {
   occupied: Long;
 }
+/**
+ *
+ * @param from {number} squareIndex
+ * @param to {nubmer} squareIndex
+ * @param occupied {Long} Bitboard of all pieces in board
+ * @returns {Long} Bitboard mask of all bits set witch are in between from-to and contains piece
+ */
 export function obstructed(from: number, to: number, occupied: Long) {
   const between = inBetween(from, to);
   if (between === null) return Long.UZERO;
@@ -171,7 +185,7 @@ export function declareBisopMoves() {
     const NE = getNEMask(square);
     const SW = getSWMask(square);
     const SE = getSEMask(square);
-    const mask = NW.or(NE).or(SW).or(SE);
+    const mask = NW.or(NE).or(SW).or(SE).and(Long.UONE.shl(square).not());
     //save
     bishopNWMasks[square] = NW;
     bishopNEMasks[square] = NE;
@@ -276,7 +290,7 @@ export function declareRookMoves() {
     const E = getEMask(params);
     const W = getWMask(params);
     const S = getSMask(params);
-    const mask = N.or(E).or(W).or(S);
+    const mask = N.or(E).or(W).or(S).and(Long.UONE.shl(square).not());
     //save
     rookNMasks[square] = N;
     rookEMasks[square] = E;
@@ -286,17 +300,15 @@ export function declareRookMoves() {
   }
 }
 export const getNMask = ({ square }: IrookMoveMasks) =>
-  HFileSet.shiftLeft(square).shiftLeft(8);
+  HFileSet.shiftLeft(square);
 export const getSMask = ({ file, rank }: IrookMoveMasks) => {
-  return AFileSet.shiftRightUnsigned(
-    7 - file + (7 - rank) * 8
-  ).shiftRightUnsigned(8);
+  return AFileSet.shiftRightUnsigned(7 - file + (7 - rank) * 8);
 };
 export const getEMask = ({ file, rank }: IrookMoveMasks) => {
-  return Rank1Set.shiftRightUnsigned(8 - file).shiftLeft(rank * 8);
+  return Rank1Set.shiftRightUnsigned(7 - file).shiftLeft(rank * 8);
 };
 export const getWMask = ({ file, rank }: IrookMoveMasks) => {
-  return Rank1Set.shiftRightUnsigned(1 + file).shiftLeft(rank * 8 + file + 1);
+  return Rank1Set.shiftRightUnsigned(file).shiftLeft(rank * 8 + file);
 };
 
 function getN(square: number) {
