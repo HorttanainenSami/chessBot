@@ -1,9 +1,7 @@
-import { gameState, getState, state } from '../GameLogic/gameStateChanger';
+import { state } from '../GameLogic/gameStateChanger';
 import Long from 'long';
 import { getMove } from '../GameLogic/move';
-import { move } from './engineMove';
 import { Color } from '../Types';
-import { inBetween, obstructed } from '../preCalculatedMoveMasks';
 import { mayMove } from '../preCalculatedMoveMasks';
 const P = 100;
 const N = 320;
@@ -110,31 +108,11 @@ const kingEG =[
 ];
 
 export const evaluate = (state: state, depth: number) => {
-  //pawn structure
-  /*
-  //king safety
-  pawn shelter
-  king mobility
-  */
-  /*
-  minor = bishop/knight 
-  major = Queen/rook
- draw if king and minor vs king 
-  king vs king
-  king bishop vs kingbishop, samecolor
-
-  2knights vs king
-  king minor vs king minor
-  2knights vs minor
-  two bishops vs bishop
-  two
- */
   if (state.mate) {
     return state.turn === 'w' ? -20000 + depth * -1000 : 20000 + depth * 1000;
   }
   if (state.draw || state.staleMate) {
-    console.log('draw');
-    return state.turn === 'w' ? -10000 : 10000;
+    return 0;
   }
 
   const wValue =

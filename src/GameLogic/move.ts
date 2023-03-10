@@ -1,6 +1,11 @@
 import Long from 'long';
-import { Color, Square } from '../Types';
-import { SquareBit, bitPieces, logger } from './helpers';
+import { Color } from '../Types';
+import {
+  SquareBit,
+  bitPieces,
+  getBlackOccupiedBits,
+  getOccupiedBits,
+} from './helpers';
 import {
   pawnLegalMoves,
   kingLegalMoves,
@@ -20,16 +25,15 @@ import {
 } from './bitManipulation';
 import { state } from './gameStateChanger';
 
-interface Imove extends IMoves {
+interface Imove {
   blackOccupiedBits: Long;
   whiteOccupiedBits: Long;
   occupiedBits: Long;
   fromBitIndex: number;
-}
-export interface IMoves {
   piece: bitPieces;
   color: Color;
 }
+
 export type getMovesReturn = Map<SquareBit, IAllMoves>;
 export interface IAllMoves {
   piece: bitPieces;
@@ -39,6 +43,12 @@ export interface IAllMoves {
   moves: Long;
   attacks: Long;
 }
+/**
+ * get all moves from one side
+ * @param color {Color} color whose turn it is
+ * @param state {state} current state of game
+ * @returns {Map<SquareBit, IAllMoves>}
+ */
 export const getMoves = ({
   color,
   state,
@@ -51,14 +61,8 @@ export const getMoves = ({
   const { gameState, mate, draw } = state;
   if (mate || draw) return array;
 
-  const blackOccupiedBits = gameState.reduce((acc, curr, i) => {
-    if (i % 2 === 0) return acc;
-    return acc.or(curr);
-  }, Long.UZERO);
-  const occupiedBits = gameState.reduce(
-    (acc, curr) => acc.or(curr),
-    Long.UZERO
-  );
+  const blackOccupiedBits = getBlackOccupiedBits(gameState);
+  const occupiedBits = getOccupiedBits(gameState);
   const whiteOccupiedBits = occupiedBits.xor(blackOccupiedBits);
   const colorHelper = color === 'w' ? 0 : 1;
   for (let piece = colorHelper; piece <= 11; piece += 2) {
@@ -97,6 +101,11 @@ export const getMoves = ({
   }
   return array;
 };
+/**
+ * transforms bitboard occuppied bits to array of indexes
+ * @param BB {Long} Bitboard representation of piece
+ * @returns {SquareBit[]} bitboard occuppied bits to array of indexes
+ */
 export const toIndexArray = (BB: Long) => {
   let i = BB;
   const IndexArray: SquareBit[] = [];
@@ -110,6 +119,12 @@ export const toIndexArray = (BB: Long) => {
   }
   return IndexArray;
 };
+/**
+ *  gets moves of specific piece
+ * @param move {Imove} nessesary information to get possible moves
+ * @param state {state} current state of game
+ * @returns {Long} BB of all possible moves that piece can make
+ */
 export const getMove = ({
   move,
   state,
@@ -119,29 +134,18 @@ export const getMove = ({
 }): Long => {
   const friendlyKing =
     move.color === 'w' ? state.gameState[10] : state.gameState[11];
-  const {
-    pinned,
-    elPassant,
-    doubleCheck,
-    check,
-    checkingRays,
-    castling,
-    gameState,
-  } = state;
+
   const params = {
     ...move,
     friendlyKing,
-    pinned,
-    check,
-    doubleCheck,
-    checkingRays,
+    state,
   };
   switch (move.piece) {
     case 0: {
-      return getPawn({ ...params, elPassant });
+      return getPawn(params);
     }
     case 1: {
-      return getPawn({ ...params, elPassant });
+      return getPawn(params);
     }
     case 2: {
       return getRook(params);
@@ -162,29 +166,39 @@ export const getMove = ({
       return getKnight(params);
     }
     case 8: {
-      if (doubleCheck) return Long.UZERO;
+      if (state.doubleCheck) return Long.UZERO;
       const diagonalLegalMoves = getBishop(params);
       const RookLegalMoves = getRook(params);
 
       return diagonalLegalMoves.or(RookLegalMoves);
     }
     case 9: {
-      if (doubleCheck) return Long.UZERO;
+      if (state.doubleCheck) return Long.UZERO;
       const diagonalLegalMoves = getBishop(params);
       const RookLegalMoves = getRook(params);
       return diagonalLegalMoves.or(RookLegalMoves);
     }
     case 10: {
-      return getKing({ ...params, castling, state: gameState });
+      return getKing(params);
     }
     case 11: {
-      return getKing({ ...params, castling, state: gameState });
+      return getKing(params);
     }
     default:
       return Long.UZERO;
   }
 };
-
+/**
+ * returns legal moves of rook
+ * @param color {Color} color whose turn it is
+ * @param fromBitIndex {number} square index of rook
+ * @param blackOccupiedBits {Long} bb of black pieces
+ * @param whiteOccupiedBits {Long} bb of white pieces
+ * @param occupiedBits {Long} bb of occupied bits
+ * @param friendlyKing {Long} friendly king
+ * @param state {state} current state of game
+ * @returns {Long} BB of possible moves
+ */
 export function getRook({
   color,
   fromBitIndex,
@@ -192,11 +206,9 @@ export function getRook({
   whiteOccupiedBits,
   occupiedBits,
   friendlyKing,
-  doubleCheck,
-  check,
-  checkingRays,
-  pinned,
+  state,
 }: getPieces) {
+  const { doubleCheck, check, checkingRays, pinned } = state;
   if (doubleCheck) return Long.UZERO;
   const rookPosition = Long.UONE.shiftLeft(fromBitIndex);
   const kingPosition = friendlyKing;
@@ -227,6 +239,17 @@ export function getRook({
   });
   return check ? legalMoves.and(checkingRays) : legalMoves;
 }
+/**
+ * returns legal moves of bishop
+ * @param color {Color} color whose turn it is
+ * @param fromBitIndex {number} square index of rook
+ * @param blackOccupiedBits {Long} bb of black pieces
+ * @param whiteOccupiedBits {Long} bb of white pieces
+ * @param occupiedBits {Long} bb of occupied bits
+ * @param friendlyKing {Long} friendly king
+ * @param state {state} current state of game
+ * @returns {Long} BB of possible moves
+ */
 export function getBishop({
   color,
   fromBitIndex,
@@ -234,11 +257,9 @@ export function getBishop({
   whiteOccupiedBits,
   occupiedBits,
   friendlyKing,
-  doubleCheck,
-  check,
-  checkingRays,
-  pinned,
+  state,
 }: getPieces) {
+  const { doubleCheck, check, checkingRays, pinned } = state;
   if (doubleCheck) return Long.UZERO;
   const teammateOccupiedBits =
     color === 'w' ? whiteOccupiedBits : blackOccupiedBits;
@@ -272,14 +293,19 @@ export function getBishop({
 
 interface getPieces extends Omit<Imove, 'piece'> {
   friendlyKing: Long;
-  check: boolean;
-  doubleCheck: boolean;
-  checkingRays: Long;
-  pinned: Long;
+  state: state;
 }
-interface IgetPawn extends getPieces {
-  elPassant: SquareBit | null;
-}
+/**
+ * returns legal moves of pawn
+ * @param color {Color} color whose turn it is
+ * @param fromBitIndex {number} square index of rook
+ * @param blackOccupiedBits {Long} bb of black pieces
+ * @param whiteOccupiedBits {Long} bb of white pieces
+ * @param occupiedBits {Long} bb of occupied bits
+ * @param friendlyKing {Long} friendly king
+ * @param state {state} current state of game
+ * @returns {Long} BB of possible moves
+ */
 export function getPawn({
   color,
   fromBitIndex,
@@ -287,12 +313,9 @@ export function getPawn({
   whiteOccupiedBits,
   occupiedBits,
   friendlyKing,
-  doubleCheck,
-  check,
-  checkingRays,
-  elPassant,
-  pinned,
-}: IgetPawn) {
+  state,
+}: getPieces) {
+  const { doubleCheck, pinned, elPassant, checkingRays, check } = state;
   const pawnPosition = Long.UONE.shl(fromBitIndex);
   const enemyOccupied = color === 'b' ? whiteOccupiedBits : blackOccupiedBits;
   if (doubleCheck) return Long.UZERO;
@@ -316,16 +339,25 @@ export function getPawn({
   });
   return check ? legalMoves.and(checkingRays) : legalMoves;
 }
+/**
+ * returns legal moves of Knight
+ * @param color {Color} color whose turn it is
+ * @param fromBitIndex {number} square index of rook
+ * @param blackOccupiedBits {Long} bb of black pieces
+ * @param whiteOccupiedBits {Long} bb of white pieces
+ * @param occupiedBits {Long} bb of occupied bits
+ * @param friendlyKing {Long} friendly king
+ * @param state {state} current state of game
+ * @returns {Long} BB of possible moves
+ */
 export function getKnight({
   color,
   fromBitIndex,
   blackOccupiedBits,
   whiteOccupiedBits,
-  doubleCheck,
-  check,
-  checkingRays,
-  pinned,
+  state,
 }: getPieces) {
+  const { doubleCheck, check, checkingRays, pinned } = state;
   const teammateOccupied =
     color === 'w' ? whiteOccupiedBits : blackOccupiedBits;
   if (doubleCheck) return Long.UZERO;
@@ -338,10 +370,17 @@ export function getKnight({
   const legalMoves = pseudoMoves.and(teammateOccupied.not());
   return check ? legalMoves.and(checkingRays) : legalMoves;
 }
-interface IgetKing extends Omit<Imove, 'piece'> {
-  state: Long[];
-  castling: string;
-}
+/**
+ * returns legal moves of king
+ * @param color {Color} color whose turn it is
+ * @param fromBitIndex {number} square index of rook
+ * @param blackOccupiedBits {Long} bb of black pieces
+ * @param whiteOccupiedBits {Long} bb of white pieces
+ * @param occupiedBits {Long} bb of occupied bits
+ * @param friendlyKing {Long} friendly king
+ * @param state {state} current state of game
+ * @returns {Long} BB of possible moves
+ */
 export function getKing({
   color,
   fromBitIndex,
@@ -349,8 +388,8 @@ export function getKing({
   whiteOccupiedBits,
   occupiedBits,
   state,
-  castling,
-}: IgetKing) {
+}: Omit<getPieces, 'friendlyKing'>) {
+  const { castling, gameState } = state;
   const teammateOccupied =
     color === 'w' ? whiteOccupiedBits : blackOccupiedBits;
   const legalMoves = kingLegalMoves({
@@ -365,28 +404,37 @@ export function getKing({
     fromBitIndex,
     castling,
     occupiedBits,
-    state,
+    gameState,
   });
   const notAttackedSquares = subsetOfMaskThatIsNotAttacked({
     moveMask: legalMoves.or(castlings),
     occupiedBits: occupiedBits.xor(Long.UONE.shl(fromBitIndex)),
     color,
-    state,
+    gameState,
   });
   return notAttackedSquares;
 }
+/**
+ * returns legal castling moves for king
+ * @param color {Color} color whose turn it is
+ * @param fromBitIndex {number} square index of rook
+ * @param occupiedBits {Long} bb of occupied bits
+ * @param gameState {Long[]} current state of game
+ * @param castling {string} current castling rights
+ * @returns {Long} BB of possible castling moves
+ */
 const kingLegalCastlings = ({
   color,
   fromBitIndex,
   castling,
   occupiedBits,
-  state,
+  gameState,
 }: {
   color: Color;
   fromBitIndex: number;
   castling: string;
   occupiedBits: Long;
-  state: Long[];
+  gameState: Long[];
 }) => {
   //check if castling is possible via castling variable
   // and check if whole line is not occupied
@@ -400,7 +448,7 @@ const kingLegalCastlings = ({
       moveMask: kingMoveMask,
       occupiedBits,
       color,
-      state,
+      gameState,
     });
     return safeMoveMask.equals(kingMoveMask) ? Long.UONE.shl(to) : Long.UZERO;
   }
@@ -434,6 +482,16 @@ const kingLegalCastlings = ({
 
   return castlingMask;
 };
+/**
+ * returns bitboard representation of pawn pinner
+ * @param color {Color} color whose turn it is
+ * @param fromBitIndex {number} square index of rook
+ * @param enemyOccupied {Long} bb of enemy pieces
+ * @param occupiedBits {Long} bb of occupied bits
+ * @param kingSq {number} king square
+ * @param elpassant {SquareBit|null} elpassant square
+ * @returns {Long} BB of pawn pinner
+ */
 export function getPawnPinnerDirection({
   fromBitIndex,
   kingSq,
@@ -593,15 +651,15 @@ export const kingIsAttackedFrom = ({
   occupiedBits,
   fromBitIndex,
   color,
-  state,
+  gameState,
 }: {
   occupiedBits: Long;
   fromBitIndex: number;
   color: Color;
-  state: Long[];
+  gameState: Long[];
 }) => {
   const colorHelper = color === 'w' ? 0 : 1;
-  const pawns = state[1 - colorHelper] as Long;
+  const pawns = gameState[1 - colorHelper] as Long;
   let checkRays = Long.UZERO;
   let numOfChecks = 0;
   const pawnAttack = pawnPseudoAttacks({ fromBitIndex, color }).and(pawns);
@@ -609,9 +667,9 @@ export const kingIsAttackedFrom = ({
     checkRays = checkRays.or(pawnAttack);
     numOfChecks = numOfChecks + 1;
   }
-  const rooks = state[3 - colorHelper] as Long;
-  const queens = state[9 - colorHelper] as Long;
-  const bishops = state[5 - colorHelper] as Long;
+  const rooks = gameState[3 - colorHelper] as Long;
+  const queens = gameState[9 - colorHelper] as Long;
+  const bishops = gameState[5 - colorHelper] as Long;
   const rookAttacks = rookLegalAttacks({
     occupiedBits,
     fromBitIndex,
@@ -642,7 +700,7 @@ export const kingIsAttackedFrom = ({
     numOfChecks = numOfChecks + 1;
   }
 
-  const knights = state[7 - colorHelper] as Long;
+  const knights = gameState[7 - colorHelper] as Long;
   const knightAttacks = moveMask.getKnightMoves(fromBitIndex).and(knights);
   if (!knightAttacks.isZero()) {
     checkRays = checkRays.or(knightAttacks);
@@ -662,12 +720,12 @@ export function subsetOfMaskThatIsNotAttacked({
   moveMask,
   occupiedBits,
   color,
-  state,
+  gameState,
 }: {
   moveMask: Long;
   occupiedBits: Long;
   color: Color;
-  state: Long[];
+  gameState: Long[];
 }) {
   //scan all bits
   let allMoves = moveMask;
@@ -679,7 +737,7 @@ export function subsetOfMaskThatIsNotAttacked({
       occupiedBits,
       fromBitIndex: square,
       friendlyColor: color,
-      state,
+      gameState,
     });
     if (attacked) squaresAttacked = squaresAttacked.or(Long.UONE.shl(square));
     //remove checked square
@@ -717,15 +775,15 @@ export const squareIsAttacked = ({
   occupiedBits,
   fromBitIndex,
   friendlyColor,
-  state,
+  gameState,
 }: {
   occupiedBits: Long;
   fromBitIndex: number;
   friendlyColor: Color;
-  state: Long[];
+  gameState: Long[];
 }) => {
   const enemyColorHelper = friendlyColor === 'w' ? 0 : 1;
-  const ePawns = state[1 - enemyColorHelper] as Long;
+  const ePawns = gameState[1 - enemyColorHelper] as Long;
   //check if pawnAttack from examined square contains enemy pawn
   if (
     !pawnPseudoAttacks({ fromBitIndex, color: friendlyColor })
@@ -734,8 +792,8 @@ export const squareIsAttacked = ({
   ) {
     return true;
   }
-  const eRooks = state[3 - enemyColorHelper] as Long;
-  const eQueens = state[9 - enemyColorHelper] as Long;
+  const eRooks = gameState[3 - enemyColorHelper] as Long;
+  const eQueens = gameState[9 - enemyColorHelper] as Long;
   const eRooksQueens = eQueens.or(eRooks);
   //check if rookAttack from examined square contains enemy Rook/Queen
   if (
@@ -748,7 +806,7 @@ export const squareIsAttacked = ({
   ) {
     return true;
   }
-  const eBishops = state[5 - enemyColorHelper] as Long;
+  const eBishops = gameState[5 - enemyColorHelper] as Long;
   const eBbishopsQueens = eQueens.or(eBishops);
 
   //check if bishopAttack from examined square contains enemy Bishop/Queen
@@ -762,12 +820,12 @@ export const squareIsAttacked = ({
   ) {
     return true;
   }
-  const eKnights = state[7 - enemyColorHelper] as Long;
+  const eKnights = gameState[7 - enemyColorHelper] as Long;
   //check if knightAttack from examined square contains enemy Knight
   if (!moveMask.getKnightMoves(fromBitIndex).and(eKnights).isZero()) {
     return true;
   }
-  const eKings = state[11 - enemyColorHelper] as Long;
+  const eKings = gameState[11 - enemyColorHelper] as Long;
   //check if kingAttack from examined square contains enemy King
   if (!moveMask.getKingMoves(fromBitIndex).and(eKings).isZero()) {
     return true;

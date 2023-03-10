@@ -2,11 +2,17 @@ import Long from 'long';
 import _ from 'lodash';
 import { Color, Move } from '../Types';
 import { bishopAttacks, moveMask, rookLegalAttacks } from './moveMask';
-import { SquareBit, bitPieces, logger } from './helpers';
+import {
+  SquareBit,
+  bitPieces,
+  getBlackOccupiedBits,
+  getOccupiedBits,
+  logger,
+} from './helpers';
 import { getMoves, kingIsAttackedFrom } from './move';
 import { bchHash } from '../Engine/engineMove';
 //declare
-export let gameState: Long[] = [
+let gameState: Long[] = [
   //pawns
   Long.fromString('0xff00', true, 16), //w
   Long.fromString('0xff000000000000', true, 16), //b
@@ -26,28 +32,28 @@ export let gameState: Long[] = [
   Long.fromString('0x8', true, 16), //w
   Long.fromString('0x800000000000000', true, 16), //b
 ];
-export let moveHistory: number[] = [];
-export let bchHistory: number[] = [];
-export let elPassant: SquareBit | null = null;
-export let pinned: Long = Long.UZERO;
-export let check = false;
-export let doubleCheck = false;
-export let checkingRays = Long.UZERO;
-export let mate = false;
-export let turn: Color = 'w';
-export let castling = 'KQkq';
-export let staleMate = false;
+let bchHistory: number[] = [];
+let elPassant: SquareBit | null = null;
+let pinned: Long = Long.UZERO;
+let check = false;
+let doubleCheck = false;
+let checkingRays = Long.UZERO;
+let mate = false;
+let turn: Color = 'w';
+let castling = 'KQkq';
+let staleMate = false;
 // can be used to set tie if reaches to 50
-export let halfMove = 0;
-export let fullMove = 1;
-export let botSide: null | Color = 'b';
-export let lastMoves: Move[] = [];
-export let draw = false;
+let halfMove = 0;
+let fullMove = 1;
+let lastMoves: Move[] = [];
+let draw = false;
 export const setElPassant = (s: SquareBit | null) => (elPassant = s);
 export const setHalfMove = (s: number) => (halfMove = s);
 export const setFullMove = (s: number) => (fullMove = s);
 export const setTurn = (s: Color) => (turn = s);
-//helper for tests
+/**
+ * Helper for tests for reseting state
+ */
 export function reset() {
   gameState = [
     //pawns
@@ -79,6 +85,10 @@ export function reset() {
   draw = false;
   staleMate = false;
   bchHistory = [];
+  castling = 'KQkq';
+  halfMove = 0;
+  fullMove = 1;
+  lastMoves = [];
 }
 export interface state {
   gameState: Long[];
@@ -97,6 +107,7 @@ export interface state {
   bchHistory: number[];
   staleMate: boolean;
 }
+
 export const getState = (): state => ({
   gameState,
   pinned,
@@ -114,6 +125,12 @@ export const getState = (): state => ({
   bchHistory,
   staleMate,
 });
+/**
+ * make given move in given state
+ * @param move {Move}
+   @param state {state}
+ * @returns {state} updated state
+ */
 export const getUpdatedState = ({
   move,
   state,
@@ -127,10 +144,185 @@ export const getUpdatedState = ({
   const { piece, to, from, color } = move;
   const toBitIndex = SquareBit[to];
   const fromBitIndex = SquareBit[from];
+
+  const { castling, gameState, captured, elPassant } = movePiece(
+    iState,
+    piece,
+    fromBitIndex,
+    toBitIndex,
+    color
+  );
+  iState.gameState = gameState;
+  iState.castling = castling;
+  iState.elPassant = elPassant;
+
+  // changeGameState(modifiedGameState, newTurn);
+  //set if pawn moved or piece captured to 0 otherwise increment
+  if (piece === 1 || piece === 0 || captured !== null) {
+    iState.halfMove = 0;
+  } else {
+    iState.halfMove += 1;
+  }
+  if (iState.turn === 'b') {
+    iState.fullMove += 1;
+  }
+  iState.turn = iState.turn === 'b' ? 'w' : 'b';
+  const { check, doubleCheck, checkingRays } = isCheck({
+    color: iState.turn,
+    gameState: iState.gameState,
+  });
+  const { pinned } = getPinnedPieces(iState.turn, iState.gameState);
+  iState.check = check;
+  iState.doubleCheck = doubleCheck;
+  iState.pinned = pinned;
+  iState.checkingRays = checkingRays;
+
+  const mate = isMate({ color: iState.turn, state: iState });
+  iState.mate = mate;
+  const { hash, draw } = getHashAndDraw(iState);
+  iState.staleMate = isStaleMate({ color: iState.turn, state: iState });
+  iState.bchHistory.push(hash);
+  iState.draw = draw;
+  return iState;
+};
+/**
+ * Function to make move, castling, update castling rights, delete captured pieces and promote pawn
+ * @param state {state} current state of game
+ * @param piece {number} moved piece
+ * @param fromBitIndex {number} index of square where move is made
+ * @param toBitIndex {number}
+ * @param color
+ * @returns
+ */
+export const movePiece = (
+  state: state,
+  piece: number,
+  fromBitIndex: number,
+  toBitIndex: number,
+  color: Color
+) => {
+  const iState = _.cloneDeep(state);
   const toMask = Long.UONE.shiftLeft(toBitIndex);
   const fromMask = Long.UONE.shiftLeft(fromBitIndex);
+  //remove captured pieces
+  //remove castling right if rook is captured
+  const elPassantCapture = checkIfElpassant(toBitIndex, piece);
+  const { capturedState, captured } = elPassantCapture
+    ? removeCapturedPiece(elPassantCapture.square, color, iState.gameState)
+    : removeCapturedPiece(toBitIndex, color, iState.gameState);
+  iState.gameState = capturedState;
+  //make castling
+  const { gameState, castling } = updateCastlingRights(
+    iState,
+    fromBitIndex,
+    toBitIndex,
+    piece,
+    captured
+  );
+  iState.gameState = gameState;
+  iState.castling = castling;
 
-  //if piece moved is king or rook remove castling
+  //if pawn moves to last rank it will be promoted to Queen
+  //make move
+  iState.gameState[piece] = iState.gameState[piece].and(fromMask.not());
+  iState.gameState[piece] = iState.gameState[piece].or(toMask);
+  //set/remove elpassant
+  iState.gameState = promotePawn(iState.gameState, toBitIndex, piece);
+
+  if ((piece === 1 || piece === 0) && (fromBitIndex - toBitIndex) % 16 === 0) {
+    const elPassantSquare = color === 'w' ? fromBitIndex + 8 : fromBitIndex - 8;
+    iState.elPassant = elPassantSquare;
+  } else {
+    iState.elPassant = null;
+  }
+
+  return { ...iState, captured };
+};
+/**
+ * get hash of current gamestate and check if current boardstate is occurred in current game
+ * @param state {state} current game state
+ * @returns {hash:number, draw:boolean} returns hash of current state and if state is repetition
+ */
+function getHashAndDraw(state: state) {
+  //fetch current hash
+  const hash = bchHash(
+    state.gameState,
+    state.turn === 'w',
+    state.castling,
+    state.draw
+  );
+  //check history of alike hashcodes
+  const repetition = state.bchHistory.filter((r) => r === hash).length;
+  //if repetition is greater than 2, return new hash with draw imbedded
+  if (repetition >= 2) {
+    return {
+      hash: bchHash(state.gameState, state.turn === 'w', state.castling, true),
+      draw: true,
+    };
+  }
+  return { hash, draw: false };
+}
+/**
+ * should be used to update gamestate, when making move
+ * @param move {Move} move data for next move
+ */
+export const updateGameState = (move: Move) => {
+  const s = getUpdatedState({ move, state: getState() });
+  gameState = s.gameState;
+  pinned = s.pinned;
+  check = s.check;
+  doubleCheck = s.doubleCheck;
+  checkingRays = s.checkingRays;
+  mate = s.mate;
+  turn = s.turn;
+  elPassant = s.elPassant;
+  halfMove = s.halfMove;
+  fullMove = s.fullMove;
+  castling = s.castling;
+  bchHistory = s.bchHistory;
+  draw = s.draw;
+  staleMate = s.staleMate;
+};
+/**
+ * promote pawn to queen if pawn is in last rank
+ * @param state {state} current state of game
+ * @param toBitIndex {number} index of square where piece is moved
+ * @param piece  {number} number of piece
+ * @returns  {state} updated state
+ */
+export const promotePawn = (
+  state: Long[],
+  toBitIndex: number,
+  piece: number
+) => {
+  const gameState = _.clone(state);
+  const to = Long.UONE.shl(toBitIndex);
+  if (piece === 1 && ~~(toBitIndex / 8) === 0) {
+    gameState[9] = gameState[9].or(to);
+    gameState[1] = gameState[1].and(to.not());
+  }
+  if (piece === 0 && ~~(toBitIndex / 8) === 7) {
+    gameState[8] = gameState[8].or(to);
+    gameState[0] = gameState[0].and(to.not());
+  }
+  return gameState;
+};
+/**
+ *  if moved piece is king or rook, update castling rights and make move also make castling move
+ * @param iState {state} current gamestate
+ * @param fromBitIndex {number} index of square
+ * @param toBitIndex {number} index of square
+ * @param piece {number} number of piece
+ * @returns {castling: string, gameState: Long[]} returns updated castling rights and updated piece positions if castling occurs
+ */
+export const updateCastlingRights = (
+  state: state,
+  fromBitIndex: number,
+  toBitIndex: number,
+  piece: number,
+  captured: number | null
+) => {
+  const iState = _.cloneDeep<state>(state);
   if (piece === 10) {
     if (fromBitIndex === 3 && toBitIndex === 1) {
       if (!iState.gameState[2].and(Long.UONE).isZero()) {
@@ -167,114 +359,28 @@ export const getUpdatedState = ({
     if (fromBitIndex === 0) iState.castling = iState.castling.replace('K', '');
     if (fromBitIndex === 7) iState.castling = iState.castling.replace('Q', '');
   }
+  if (captured === 2) {
+    if (toBitIndex === 0) iState.castling = iState.castling.replace('K', '');
+    if (toBitIndex === 7) iState.castling = iState.castling.replace('Q', '');
+  }
   if (piece === 3) {
     if (fromBitIndex === 56) iState.castling = iState.castling.replace('k', '');
     if (fromBitIndex === 63) iState.castling = iState.castling.replace('q', '');
   }
-  //TODO if move is rook remove castling rights of that side rook
-
-  //make move
-  iState.gameState[piece] = iState.gameState[piece].and(fromMask.not());
-  iState.gameState[piece] = iState.gameState[piece].or(toMask);
-  //remove captured pieces
-  const elPassantCapture = checkIfElpassant(toBitIndex, piece);
-  const deletedPieces = elPassantCapture
-    ? removeCapturedPiece(elPassantCapture.square, color, iState.gameState)
-    : removeCapturedPiece(toBitIndex, color, iState.gameState);
-  //if pawn moves to last rank it will be promoted to Queen
-  if (piece === 1 && ~~(toBitIndex / 8) === 0) {
-    iState.gameState[9] = iState.gameState[9].or(toMask);
-    iState.gameState[piece] = iState.gameState[piece].and(toMask.not());
-  }
-  if (piece === 0 && ~~(toBitIndex / 8) === 7) {
-    iState.gameState[8] = iState.gameState[8].or(toMask);
-    iState.gameState[piece] = iState.gameState[piece].and(toMask.not());
+  if (captured === 3) {
+    if (toBitIndex === 56) iState.castling = iState.castling.replace('k', '');
+    if (toBitIndex === 63) iState.castling = iState.castling.replace('q', '');
   }
 
-  //set/remove elpassant
-  if ((piece === 1 || piece === 0) && (fromBitIndex - toBitIndex) % 16 === 0) {
-    const elPassantSquare = color === 'w' ? fromBitIndex + 8 : fromBitIndex - 8;
-    iState.elPassant = elPassantSquare;
-  } else {
-    iState.elPassant = null;
-  }
-
-  //final state changes
-
-  if (deletedPieces) {
-    iState.gameState[deletedPieces.i] = deletedPieces.pieces;
-  }
-  // changeGameState(modifiedGameState, newTurn);
-  //set if pawn moved or piece captured to 0 otherwise increment
-  if (piece === 1 || piece === 0 || deletedPieces) {
-    iState.halfMove = 0;
-  } else {
-    iState.halfMove += 1;
-  }
-
-  if (iState.turn === 'b') {
-    iState.fullMove += 1;
-  }
-  iState.turn = iState.turn === 'b' ? 'w' : 'b';
-  const { check, doubleCheck, checkingRays } = isCheck({
-    color: iState.turn,
-    state: iState.gameState,
-  });
-  const { pinned } = calculatePinned(iState.turn, iState.gameState);
-  iState.check = check;
-  iState.doubleCheck = doubleCheck;
-  iState.pinned = pinned;
-  iState.checkingRays = checkingRays;
-
-  const mate = isMate({ color: iState.turn, state: iState });
-  iState.mate = mate;
-  const { hash, draw } = getHashAndDraw(iState);
-  iState.bchHistory.push(hash);
-  iState.draw = draw;
-  return iState;
+  return { castling: iState.castling, gameState: iState.gameState };
 };
-function getHashAndDraw(state: state) {
-  //fetch current hash
-  const hash = bchHash(
-    state.gameState,
-    state.turn === 'w',
-    state.castling,
-    state.draw
-  );
-  //check history of alike hashcodes
-  const repetition = state.bchHistory.filter((r) => r === hash).length;
-  //if repetition is greater than 2, return new hash with draw imbedded
-  if (repetition >= 2) {
-    return {
-      hash: bchHash(state.gameState, state.turn === 'w', state.castling, true),
-      draw: true,
-    };
-  }
-  return { hash, draw: false };
-}
+
 /**
- * should be used to update gamestate, when making move
- * @param move front end apis given data
+ * returns square index where elpassant can be performed
+ * @param toBitIndex {number} index of square where piece is moved
+ * @param piece {number} piece number
+ * @returns {number} elpassant square index
  */
-export const updateGameState = (move: Move) => {
-  const s = getUpdatedState({ move, state: getState() });
-  gameState = s.gameState;
-  pinned = s.pinned;
-  check = s.check;
-  doubleCheck = s.doubleCheck;
-  checkingRays = s.checkingRays;
-  mate = s.mate;
-  turn = s.turn;
-  elPassant = s.elPassant;
-  halfMove = s.halfMove;
-  fullMove = s.fullMove;
-  castling = s.castling;
-  bchHistory = s.bchHistory;
-  draw = s.draw;
-  staleMate = s.staleMate;
-  return true;
-};
-
 export const checkIfElpassant = (toBitIndex: number, piece: bitPieces) => {
   // check if moved piece is pawn and its moved to elpassant square
   if (toBitIndex === elPassant && (piece === 0 || piece === 1)) {
@@ -290,36 +396,51 @@ export const checkIfElpassant = (toBitIndex: number, piece: bitPieces) => {
     }
   }
 };
-
+/**
+ *  remove captured pieces from state
+ * @param toBitIndex {number} index of square where piece is moved
+ * @param color {Color} color of moved piece
+ * @param state {state} current state of game
+ * @returns { capturedState: state, captured: number} returns updated state and captured piece number
+ */
 export const removeCapturedPiece = (
-  fromBitIndex: number,
+  toBitIndex: number,
   color: Color,
   state: Long[]
 ) => {
   // white pieces is even and black odd in gamestate Array so we need to set this even for black odd
   const forHelper = color === 'w' ? 1 : 0;
-  const capturedPiece = Long.UONE.shiftLeft(fromBitIndex);
+  const iState = _.clone(state);
+  let captured = null;
+  const capturedPiece = Long.UONE.shiftLeft(toBitIndex);
   for (let i = forHelper; i < state.length; i += 2) {
     let pieces = state[i] as Long;
     if (!capturedPiece.and(pieces).isZero()) {
       pieces = pieces.and(capturedPiece.not());
-      return { i, pieces };
+      iState[i] = pieces;
+      captured = i;
     }
   }
+  return { capturedState: iState, captured };
 };
 
-// Move object or Algerbaic notation ie. Ng3 means knigth moves for g3 coortidane
+/**
+ * make move in current state
+ * @param props {move}
+ */
 export const makeMove = (props: Move) => {
   if (props.color !== turn) return false;
   return updateGameState(props);
 };
-
-export const calculatePinned = (color: Color, state: Long[]) => {
-  const blackOccupiedBits = state.reduce((acc, curr, i) => {
-    if (i % 2 === 0) return acc;
-    return acc.or(curr);
-  }, Long.UZERO);
-  const occupiedBits = state.reduce((acc, curr) => acc.or(curr), Long.UZERO);
+/**
+ * get pieces that are pinned against king
+ * @param color {Color}
+ * @param state {state} current state of game
+ * @returns {pinned: Long} bitboard representation of pieces that are pinned
+ */
+export const getPinnedPieces = (color: Color, state: Long[]) => {
+  const blackOccupiedBits = getBlackOccupiedBits(state);
+  const occupiedBits = getOccupiedBits(state);
   const teammateOccupiedBits =
     color === 'w' ? occupiedBits.xor(blackOccupiedBits) : blackOccupiedBits;
   const initialPinned = pinnedPieces(
@@ -330,7 +451,14 @@ export const calculatePinned = (color: Color, state: Long[]) => {
   );
   return { pinned: initialPinned };
 };
-
+/**
+ * gets pieces that are pinned against king so they cannot move away from line of attack
+ * @param color {Color} color whose turn it is
+ * @param teammateOccupiedBits {Long} BB of teammate bits
+ * @param occupied {Long} BB of occupied bits
+ * @param state {state} current state of game
+ * @returns {Long} bb of all pinned pieces
+ */
 export function pinnedPieces(
   color: Color,
   teammateOccupiedBits: Long,
@@ -475,8 +603,8 @@ export const setFEN = (
 };
 export const changeGameState = (state: state, color: Color) => {
   //if color is given as parameter or get next players color
-  const initialPinned = calculatePinned(color, state.gameState);
-  const initialCheck = isCheck({ color, state: state.gameState });
+  const initialPinned = getPinnedPieces(color, state.gameState);
+  const initialCheck = isCheck({ color, gameState: state.gameState });
   check = initialCheck.check;
   checkingRays = initialCheck.checkingRays;
   doubleCheck = initialCheck.doubleCheck;
@@ -486,19 +614,36 @@ export const changeGameState = (state: state, color: Color) => {
   mate = initialMate;
   staleMate = initialStaleMate;
 };
-
+/**
+ * checks if game is in mate
+ * @param color {Color} color whose turn is it
+ * @param state {state} current stat of game
+ * @returns {boolean}
+ */
 export function isMate({ color, state }: { color: Color; state: state }) {
   if (!canMove({ color, state }) && state.check) {
     return true;
   }
   return false;
 }
+/**
+ * checks if game is in stalemate
+ * @param color {Color} color whose turn is it
+ * @param state {state} current stat of game
+ * @returns {boolean}
+ */
 export function isStaleMate({ color, state }: { color: Color; state: state }) {
   if (!canMove({ color, state }) && !state.check) {
     return true;
   }
   return false;
 }
+/**
+ * checks if side can make move
+ * @param color {Color} color whose turn is it
+ * @param state {state} current stat of game
+ * @returns {boolean}
+ */
 export function canMove({ color, state }: { color: Color; state: state }) {
   const allMoves = getMoves({ color, state });
   for (let [, info] of allMoves) {
@@ -513,16 +658,22 @@ interface isCheckReturn {
   doubleCheck: boolean;
   checkingRays: Long;
 }
+/**
+ * checks if game is in check
+ * @param color {Color} color whose turn is it
+ * @param state {state} current stat of game
+ * @returns {boolean}
+ */
 export function isCheck({
   color,
-  state,
+  gameState,
 }: {
   color: Color;
-  state: Long[];
+  gameState: Long[];
 }): isCheckReturn {
-  const occupiedBits = state.reduce((acc, curr) => acc.or(curr), Long.UZERO);
+  const occupiedBits = getOccupiedBits(gameState);
   const kingPosition =
-    color === 'b' ? (state[11] as Long) : (state[10] as Long);
+    color === 'b' ? (gameState[11] as Long) : (gameState[10] as Long);
   const fromBitIndex = kingPosition.countTrailingZeros();
   if (fromBitIndex === 64)
     return {
@@ -534,7 +685,7 @@ export function isCheck({
   const { rays, check, doubleCheck } = kingIsAttackedFrom({
     occupiedBits,
     fromBitIndex,
-    state,
+    gameState,
     color,
   });
   //trigger mate checking function
@@ -543,15 +694,4 @@ export function isCheck({
     checkingRays: rays,
     check,
   };
-}
-
-interface Imove extends IMoves {
-  blackOccupiedBits: Long;
-  whiteOccupiedBits: Long;
-  occupiedBits: Long;
-  fromBitIndex: number;
-}
-export interface IMoves {
-  piece: bitPieces;
-  color: Color;
 }

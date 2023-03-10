@@ -20,7 +20,7 @@ interface IgetState {
   checkingRays: Long;
   mate: boolean;
   turn: Color;
-  stalemate: boolean;
+  staleMate: boolean;
   draw: boolean;
 }
 const useChessApi = () => {

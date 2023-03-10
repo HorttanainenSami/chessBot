@@ -6,6 +6,7 @@ import {
   bchHash,
   polynomials,
   enginesNextMove,
+  clearTransposition,
 } from './engineMove';
 import { Color, Move, Piece, PieceSymbol, Square } from '../Types';
 import { SquareBit } from '../GameLogic/helpers';
@@ -301,15 +302,49 @@ describe('alphabeta finds n mate when depth is n', () => {
   beforeEach(() => {
     reset();
   });
-  it('finds mate in 2, when depth is 4', async () => {
+  it('finds mate in 3, when depth is 4', async () => {
     loadFEN('6k1/pp4p1/2p5/2bp4/8/P5Pb/1P3rrP/2BRRN1K b - - 0 3');
-    const wmove = await enginesNextMove(4, 'b');
-    makeMove(wmove);
-    const bmove = await enginesNextMove(4, 'w');
-    makeMove(bmove);
-    const wmove2 = await enginesNextMove(4, 'b');
-    makeMove(wmove2);
-    const state = getState();
-    expect(state.mate).toBe(true);
+    const { value } = await enginesNextMove(4, 'b');
+    expect(value).toBe(-21000);
+  });
+  it('finds mate in 3, when depth is 3', async () => {
+    loadFEN('1KB5/4N3/3pr1q1/R5nR/1B3kpQ/3pr1b1/5PP1/8 w - - 0 1');
+    const { value } = await enginesNextMove(3, 'w');
+    expect(value).toBe(20000);
+  });
+  it('finds mate in 3, when depth is 4', async () => {
+    loadFEN('b1B3Q1/5K2/5NP1/n7/2p2k1P/3pN2R/1B1P4/4qn2 w - - 0 1');
+    const { value } = await enginesNextMove(4, 'w');
+    expect(value).toBe(21000);
+  });
+  it('finds mate in 6, when depth is 6', async () => {
+    loadFEN('1k6/1P5Q/8/7B/8/5K2/8/8 b - - 0 1');
+    const { value } = await enginesNextMove(6, 'b');
+    expect(value).toBe(20000);
+  });
+  it('does not find mate in 6, when depth is 4', async () => {
+    loadFEN('1k6/1P5Q/8/7B/8/5K2/8/8 b - - 0 1');
+    clearTransposition();
+    const { value } = await enginesNextMove(4, 'b');
+    expect(value).not.toBe(20000);
+  });
+  it('does find mate in 3, when depth is 4', async () => {
+    loadFEN('2b3R1/1p1Q2B1/1P3Pp1/R1PB2kN/6N1/7K/pppPppP1/8 w - - 0 1');
+    clearTransposition();
+    const { value } = await enginesNextMove(4, 'w');
+    expect(value).toBe(21000);
+  });
+  it('does find mate in 5, when depth is 5', async () => {
+    loadFEN('1rr2b2/8/2P1p3/Pp2P3/2PkpP2/pQ6/P3PPN1/2K5 w - - 0 1');
+    clearTransposition();
+    const { value } = await enginesNextMove(5, 'w');
+    expect(value).toBe(20000);
+  });
+
+  it('does find mate in 4, when depth is 4', async () => {
+    loadFEN('4Q3/pkp5/8/1PKN4/8/8/4B3/6B1 b - - 0 1');
+    clearTransposition();
+    const { value } = await enginesNextMove(4, 'b');
+    expect(value).toBe(20000);
   });
 });

@@ -1,5 +1,6 @@
 import Long from 'long';
 import { Piece } from '../Types';
+import { state } from './gameStateChanger';
 
 //help to log bitboard in console effeciently
 export const logger = (l: Long, text?: string) => {
@@ -31,37 +32,17 @@ export function isNumeric(expectedValue: any) {
   }
   return false;
 }
-
+export function getBlackOccupiedBits(state: Long[]) {
+  return state.reduce(
+    (sum, acc, index) => (index % 2 !== 0 ? sum.or(acc) : sum),
+    Long.UZERO
+  );
+}
+export function getOccupiedBits(state: Long[]) {
+  return state.reduce((sum, acc) => sum.or(acc), Long.UZERO);
+}
 export const checkBitAt = (long: Long, index: number) =>
   !long.shiftRightUnsigned(index).and(1).isZero();
-
-// returns /Long/ removes blocked squares
-// negative:
-// true: means if we are moving right and/or down in chessboard
-// false: up and/or right
-export const removeBlockedMoves = (
-  attacks: Long,
-  mask: Long,
-  negative: boolean = false
-) => {
-  if (attacks.and(mask).equals(0)) return mask;
-  if (negative) {
-    const blockingPieceIndex = 63 - attacks.and(mask).countLeadingZeros();
-    return mask
-      .shiftRightUnsigned(blockingPieceIndex)
-      .shiftLeft(blockingPieceIndex);
-  }
-  const blockingPieceIndex = 63 - attacks.and(mask).countTrailingZeros();
-  return mask
-    .shiftLeft(blockingPieceIndex)
-    .shiftRightUnsigned(blockingPieceIndex);
-};
-export const getBitPiece = (piece: Piece): bitPieces =>
-  bitPieces[
-    (piece.charAt(0) === 'b'
-      ? piece.charAt(1).toLowerCase()
-      : piece.charAt(1).toLocaleUpperCase()) as keyof typeof bitPieces
-  ];
 
 //Lowercase represents black Uppercase white piece
 export enum bitPieces {

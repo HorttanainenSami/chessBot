@@ -1,19 +1,23 @@
 import Long from 'long';
 import {
-  changeGameState,
-  isCheck,
-  turn,
   reset,
   xrayBishopAttacks,
   xrayRookAttacks,
   getState,
   makeMove,
   getUpdatedState,
+  checkIfElpassant,
 } from './gameStateChanger';
 import { Color, Move, PieceSymbol, Square } from '../Types';
-import { SquareBit, logger } from './helpers';
+import {
+  SquareBit,
+  getBlackOccupiedBits,
+  getOccupiedBits,
+  logger,
+} from './helpers';
 import { loadFEN } from './fen';
-import { getMove } from './move';
+import { getKing, getMove, getMoves } from './move';
+import { forEach } from 'lodash';
 const emptyBoardState: Long[] = Array(12).fill(Long.UZERO);
 beforeEach(() => reset());
 
@@ -290,5 +294,162 @@ describe('getUpdatedState', () => {
     expect(updated.bchHistory.length).toEqual(9);
     expect(state.draw).toEqual(false);
     expect(updated.draw).toEqual(true);
+  });
+});
+describe('movePiece', () => {
+  it('removes piece if it is captured', () => {
+    loadFEN('6k1/pp4p1/2p5/2bp4/8/P5Pb/1P3rrP/2BRRN1K b - - 0 1');
+    const color: Color = 'b';
+
+    const from = 'f2';
+    const to = 'f1';
+    const piece = 3;
+    const promotion = 'q';
+    const result = Long.fromString('0', true, 16);
+    makeMove({ from, to, piece, color, promotion });
+    const { gameState: state } = getState();
+    expect(state[6]).toEqual(result);
+  });
+  it('sets elpassant state', () => {
+    loadFEN('6k1/pp4p1/2p5/2bp4/8/P5Pb/1P3rrP/2BRRN1K b - - 0 1');
+    const color: Color = 'b';
+
+    const from = 'g7';
+    const to = 'g5';
+    const piece = 1;
+    const promotion = 'q';
+    makeMove({ from, to, piece, color, promotion });
+    const { elPassant } = getState();
+    expect(elPassant).toEqual(SquareBit['g6']);
+  });
+
+  it('removes elpassant state', () => {
+    loadFEN('6k1/pp6/2p5/2bp2p1/8/P5Pb/1P3rrP/2BRRN1K w - g5 0 1');
+    const color: Color = 'w';
+
+    const from = 'g3';
+    const to = 'g4';
+    const piece = 0;
+    const promotion = 'q';
+    makeMove({ from, to, piece, color, promotion });
+    const { elPassant } = getState();
+    expect(elPassant).toEqual(null);
+  });
+  it('castling can be made', () => {
+    loadFEN('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQK2R w KQkq - 0 1');
+    const color: Color = 'w';
+
+    const from = 'e1';
+    const to = 'g1';
+    const piece = 10;
+    const promotion = 'q';
+    const kingPosition = Long.fromString('2', true, 16);
+    const rookPosition = Long.fromString('84', true, 16);
+    makeMove({ from, to, piece, color, promotion });
+    const { gameState, castling } = getState();
+    expect(gameState[10]).toEqual(kingPosition);
+    expect(gameState[2]).toEqual(rookPosition);
+    expect(castling).toEqual('kq');
+  });
+  it('removes castling right if rook is captured', () => {});
+});
+describe('castling', () => {
+  it('castling is possible if castling rights are valid', () => {
+    loadFEN('r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3K2R w KQkq - 0 1');
+    const state = getState();
+    const blackOccupiedBits = getBlackOccupiedBits(state.gameState);
+    const occupiedBits = getOccupiedBits(state.gameState);
+    const whiteOccupiedBits = blackOccupiedBits.xor(occupiedBits);
+    const piece = 10;
+    const color: Color = piece % 2 === 0 ? 'w' : 'b';
+    const fromBitIndex = state.gameState[piece].countTrailingZeros();
+    const move = {
+      blackOccupiedBits,
+      whiteOccupiedBits,
+      occupiedBits,
+      fromBitIndex,
+      piece,
+      color,
+    };
+    const expectedMoves = Long.fromString('36', true, 16);
+    expect(getMove({ state: getState(), move })).toEqual(expectedMoves);
+    loadFEN('r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3K2R w Kkq - 0 1');
+    const expectedMoves1 = Long.fromString('16', true, 16);
+    expect(getMove({ state: getState(), move })).toEqual(expectedMoves1);
+
+    loadFEN('r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3K2R w Qkq - 0 1');
+    const expectedMoves2 = Long.fromString('34', true, 16);
+
+    expect(getMove({ state: getState(), move })).toEqual(expectedMoves2);
+  });
+  it('castling is possible if castling rights are valid', () => {
+    loadFEN('r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3K2R b KQkq - 0 1');
+    const state = getState();
+    const blackOccupiedBits = getBlackOccupiedBits(state.gameState);
+    const occupiedBits = getOccupiedBits(state.gameState);
+    const whiteOccupiedBits = blackOccupiedBits.xor(occupiedBits);
+    const piece = 11;
+    const color: Color = piece % 2 === 0 ? 'w' : 'b';
+    const fromBitIndex = state.gameState[piece].countTrailingZeros();
+    const move = {
+      blackOccupiedBits,
+      whiteOccupiedBits,
+      occupiedBits,
+      fromBitIndex,
+      piece,
+      color,
+    };
+    const kq = Long.fromString('3600000000000000', true, 16);
+    expect(getMove({ state: getState(), move })).toEqual(kq);
+
+    loadFEN('r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3K2R b KQk - 0 1');
+    const k = Long.fromString('1600000000000000', true, 16);
+    expect(getMove({ state: getState(), move })).toEqual(k);
+
+    loadFEN('r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3K2R b KQq - 0 1');
+    const q = Long.fromString('3400000000000000', true, 16);
+    expect(getMove({ state: getState(), move })).toEqual(q);
+
+    loadFEN('r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3K2R b KQ - 0 1');
+    const none = Long.fromString('1400000000000000', true, 16);
+    expect(getMove({ state: getState(), move })).toEqual(none);
+  });
+  it('castling is updated after rook move', () => {
+    loadFEN('r3k2r/1pppppp1/8/8/8/8/1PPPPPP1/R3K2R w KQkq - 0 1');
+    expect(getState().castling).toEqual('KQkq');
+    makeMove({ from: 'h1', to: 'h7', promotion: 'q', color: 'w', piece: 2 });
+    expect(getState().castling).toEqual('Qkq');
+    makeMove({ from: 'h8', to: 'h7', promotion: 'q', color: 'b', piece: 3 });
+    expect(getState().castling).toEqual('Qq');
+  });
+  it('castling is updated after rook is captured', () => {
+    loadFEN('r3k2r/1pppppp1/8/8/8/8/1PPPPPP1/R3K2R w KQkq - 0 1');
+    expect(getState().castling).toEqual('KQkq');
+    makeMove({ from: 'h1', to: 'h8', promotion: 'q', color: 'w', piece: 2 });
+    expect(getState().castling).toEqual('Qq');
+  });
+});
+describe('reset works', () => {
+  it('reset loads start state of game', () => {
+    loadFEN('6k1/pp4p1/2p5/2bp4/8/P5Pb/1P3rrP/2BRRN1K b - - 1 2');
+    const state1 = getState();
+    reset();
+    const state2 = getState();
+    expect(state1.castling).not.toEqual(state2.castling);
+    expect(state1.fullMove).not.toEqual(state2.fullMove);
+    expect(state1.halfMove).not.toEqual(state2.halfMove);
+    expect(state1.turn).not.toEqual(state2.turn);
+  });
+});
+
+describe('get king moves', () => {
+  it('cannot move', () => {
+    loadFEN('8/8/2p5/2pk1K2/2N1R3/8/2P5/4Q3 b - - 3 2');
+    const state = getState();
+    const moves = getMoves({ color: 'b', state });
+    expect(Array.from(moves).length).toBe(0);
+    expect(state.check).toBe(false);
+    expect(state.mate).toBe(false);
+    expect(state.staleMate).toBe(true);
   });
 });

@@ -173,7 +173,7 @@ export function obstructed(from: number, to: number, occupied: Long) {
 }
 export function mayMove({ from, to, occupied }: ImayMove) {
   const between = inBetween(from, to);
-  if (between === null) return false;
+  if (between === null || !between) return false;
   return between.and(occupied).and(Long.UONE.shl(from).not()).isZero();
 }
 

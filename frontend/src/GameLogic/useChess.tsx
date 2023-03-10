@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import Long from 'long';
-import { bitPieces, SquareBit, logger, isNumeric, checkBitAt } from './helpers';
+import { bitPieces, SquareBit } from './helpers';
 import { Square, Move, Color } from '../Types';
 import useChessApi, { getMovesReturn } from './useChessApi';
 
@@ -20,7 +20,7 @@ const useChess = () => {
   const [fen, setFen] = useState<string>(
     'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'
   );
-  let botSide: botSide = 'both';
+  let botSide: botSide = 'b';
 
   const [nextBMoves, setBNextMoves] = useState<getMovesReturn>(new Map());
   const [nextWMoves, setWNextMoves] = useState<getMovesReturn>(new Map());
@@ -85,11 +85,14 @@ const useChess = () => {
     const p1 = await getState();
     const p4 = await getFEN();
     const [s, fen] = await Promise.all([p1, p4]);
-    const { gameState, mate, check, turn } = s;
+    const { gameState, mate, check, turn, draw, staleMate } = s;
+    console.log(staleMate);
     setChecked(check);
     setMate(mate);
     setTurn(turn);
     setFen(fen);
+    setDraw(draw);
+    setStalemate(staleMate);
   }
   async function updateState() {
     const p1 = await getState();
@@ -97,14 +100,16 @@ const useChess = () => {
     const p3 = await getMovesW();
     const p4 = await getFEN();
     const [s, b, w, fen] = await Promise.all([p1, p2, p3, p4]);
-    const { draw, gameState, mate, check, turn, stalemate } = s;
+    const { draw, gameState, mate, check, turn, staleMate } = s;
+    console.log(staleMate);
+
     setBNextMoves(b);
     setWNextMoves(w);
     setChecked(check);
     setMate(mate);
     setTurn(turn);
     setFen(fen);
-    setStalemate(stalemate);
+    setStalemate(staleMate);
     setDraw(draw);
   }
   const saveMoveInServer = async (props: Move) => {

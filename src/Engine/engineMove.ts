@@ -9,13 +9,12 @@ import { Color, Move, PieceSymbol, Square } from '../Types';
 import Long from 'long';
 import { state } from '../GameLogic/gameStateChanger';
 import { evaluate } from './evaluation';
+import { clear } from 'console';
 
 interface transpositionI {
   depth: number;
   value: number;
-  move: Move | null;
-  alpha: number;
-  beta: number;
+  move: Move;
 }
 
 let transpositionTable = new Map<number, transpositionI>();
@@ -26,59 +25,60 @@ export const move = async ({ color }: { color: Color }) => {
     const start = Date.now();
 
     console.log('start');
-    transpositionTable.clear();
+    clearTransposition();
+    if (transpositionTable.size !== 0) console.log('not cleared');
     const nextMiniMax = await enginesNextMove(4, color);
     const end = Date.now();
     console.log(`Execution time: ${end - start} ms`);
 
-    return makeMove(nextMiniMax);
+    return makeMove(nextMiniMax.move);
   } catch (e) {
     console.log(e, 'error');
   }
 };
-
-export const enginesNextMove = (depth: number, color: Color): Promise<Move> => {
+interface Test extends Move {
+  depth: number;
+}
+export const clearTransposition = () => transpositionTable.clear();
+export const enginesNextMove = (
+  depth: number,
+  color: Color
+): Promise<{ value: number; move: Move }> => {
   let leaves = 0;
   return new Promise((resolve, reject) => {
     const initialState = getState();
-    let nextMove: Move | null = null;
-    const evaluatioValue = alphaBeta(
+    let nextMove: Test | null = null;
+    const maximizingPlayer = color === 'w' ? true : false;
+    const evaluationValue = alphaBeta(
       depth,
       initialState,
-      color === 'w' ? true : false,
+      maximizingPlayer,
       Number.NEGATIVE_INFINITY,
       Number.POSITIVE_INFINITY
     );
     console.log(leaves, ' leaves calculated');
     function alphaBeta(
-      depth: number,
+      initialDepth: number,
       state: state,
       maximizingPlayer: boolean,
       alpha: number,
       beta: number
     ): number {
       leaves++;
-      if (depth === 0 || state.mate || state.staleMate || state.draw)
-        return evaluate(state, depth);
+      if (initialDepth === 0 || state.mate || state.staleMate || state.draw)
+        return evaluate(state, initialDepth);
       const hashNumber = bchHash(
         state.gameState,
         maximizingPlayer,
         state.castling,
         state.draw
       );
-
+      //check if current position in transposition table
       const trans = transpositionTable.get(hashNumber);
-      if (trans && trans.depth >= depth) {
-        if (beta <= trans.alpha) {
-          if (trans.move) nextMove = trans.move;
-          return trans.alpha;
-        }
-        if (trans.beta <= alpha) {
-          if (trans.move) nextMove = trans.move;
-          return trans.beta;
-        }
-        alpha = Math.max(trans.alpha, alpha);
-        beta = Math.min(trans.beta, beta);
+      if (trans && trans.depth >= initialDepth) {
+        //use saved values if position is reached earlier
+        nextMove = { ...trans.move, depth: trans.depth };
+        return trans.value;
       }
 
       if (maximizingPlayer) {
@@ -88,16 +88,16 @@ export const enginesNextMove = (depth: number, color: Color): Promise<Move> => {
         for (let move of orderedMoves) {
           const updatedState = getUpdatedState({ move, state });
           const evaluateValue = alphaBeta(
-            depth - 1,
+            initialDepth - 1,
             updatedState,
             false,
             alpha,
             beta
           );
-          if (value < evaluateValue) {
-            value = evaluateValue;
+          if (initialDepth === depth && value < evaluateValue) {
             currBestMove = move;
           }
+          value = Math.max(value, evaluateValue);
           alpha = Math.max(alpha, value);
 
           if (beta <= value) {
@@ -106,15 +106,15 @@ export const enginesNextMove = (depth: number, color: Color): Promise<Move> => {
         }
 
         if (currBestMove !== null) {
-          nextMove = currBestMove;
+          nextMove = { ...currBestMove, depth: initialDepth };
+          if (value === Number.NEGATIVE_INFINITY) return value;
+
+          transpositionTable.set(hashNumber, {
+            value,
+            move: currBestMove,
+            depth: initialDepth,
+          });
         }
-        transpositionTable.set(hashNumber, {
-          value,
-          move: currBestMove,
-          alpha,
-          beta,
-          depth,
-        });
 
         return value;
       } else {
@@ -125,17 +125,16 @@ export const enginesNextMove = (depth: number, color: Color): Promise<Move> => {
           const updatedState = getUpdatedState({ move, state });
 
           const evaluateValue = alphaBeta(
-            depth - 1,
+            initialDepth - 1,
             updatedState,
             true,
             alpha,
             beta
           );
-
-          if (value > evaluateValue) {
-            value = evaluateValue;
+          if (initialDepth === depth && value > evaluateValue) {
             currBestMove = move;
           }
+          value = Math.min(value, evaluateValue);
           beta = Math.min(beta, value);
           if (value <= alpha) {
             break;
@@ -143,24 +142,23 @@ export const enginesNextMove = (depth: number, color: Color): Promise<Move> => {
         }
 
         if (currBestMove !== null) {
-          nextMove = currBestMove;
-        }
+          nextMove = { ...currBestMove, depth: initialDepth };
+          if (value === Number.POSITIVE_INFINITY) return value;
 
-        transpositionTable.set(hashNumber, {
-          value,
-          move: currBestMove,
-          alpha,
-          beta,
-          depth,
-        });
+          transpositionTable.set(hashNumber, {
+            value,
+            move: currBestMove,
+            depth: initialDepth,
+          });
+        }
 
         return value;
       }
     }
 
-    console.log(evaluatioValue);
-    console.log(nextMove);
-    if (nextMove) resolve(nextMove);
+    if (nextMove) {
+      resolve({ value: evaluationValue, move: nextMove });
+    }
     reject(null);
   });
 };

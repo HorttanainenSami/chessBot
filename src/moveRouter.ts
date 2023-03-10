@@ -1,7 +1,7 @@
 const moveRouter = require('express').Router();
 import { Response, Request } from 'express';
 import { Color } from './Types';
-import { botSide, getState, makeMove } from './GameLogic/gameStateChanger';
+import { getState, makeMove } from './GameLogic/gameStateChanger';
 import { getFEN, loadFEN } from './GameLogic/fen';
 import { move as botMove } from './Engine/engineMove';
 import { getMoves, getMovesReturn } from './GameLogic/move';
